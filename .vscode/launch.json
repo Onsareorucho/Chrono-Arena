@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Server",
+            "request": "launch",
+            "mainClass": "Main",
+            "args": "server",
+            "projectName": "Chrono-Arena"
+        },
+        {
+            "type": "java",
+            "name": "Client",
+            "request": "launch",
+            "mainClass": "Main",
+            "args": "client",
+            "projectName": "Chrono-Arena"
+        }
+    ]
+}

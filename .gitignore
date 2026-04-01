@@ -4,12 +4,12 @@
 out/
 
 # VSCode
-.vscode/
-bin/
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
 
-# Compiled
-*.class
-*.jar
+# Maven
+target/
 
 # OS
 .DS_Store
