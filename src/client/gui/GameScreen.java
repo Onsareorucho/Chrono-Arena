@@ -12,6 +12,7 @@ public class GameScreen extends JPanel implements Runnable {
     private Thread gameThread;
     private boolean running = false;
 
+    private SpriteManager spriteManager;
     private ArenaRenderer arenaRenderer;
     private HUDRenderer hudRenderer;
 
@@ -23,8 +24,11 @@ public class GameScreen extends JPanel implements Runnable {
         setBackground(new Color(40, 40, 40));
         setFocusable(true);
 
-        arenaRenderer = new ArenaRenderer();
-        hudRenderer = new HUDRenderer();
+        spriteManager = new SpriteManager();
+        spriteManager.loadAllSprites();
+
+        arenaRenderer = new ArenaRenderer(spriteManager);
+        hudRenderer = new HUDRenderer(spriteManager);
 
         // temporary: replace when game state is developed
         gameState = new MockGameState();
