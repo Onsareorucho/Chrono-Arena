@@ -1,6 +1,7 @@
 package server;
 
 import server.logic.ActionQueue;
+import server.logic.CollisionHandler;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -11,12 +12,18 @@ public class GameLoop {
 
     private final GameState gameState;
     private final ActionQueue actionQueue;
+    private final CollisionHandler collisionHandler;
+    private final ItemSpawner itemSpawner;
     private final ScheduledExecutorService scheduler;
     private final long tickRateMs;
 
-    public GameLoop(GameState gameState, ActionQueue actionQueue, long tickRateMs) {
+    public GameLoop(GameState gameState, ActionQueue actionQueue,
+                    CollisionHandler collisionHandler, ItemSpawner itemSpawner,
+                    long tickRateMs) {
         this.gameState = gameState;
         this.actionQueue = actionQueue;
+        this.collisionHandler = collisionHandler;
+        this.itemSpawner = itemSpawner;
         this.tickRateMs = tickRateMs;
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
     }
@@ -52,16 +59,20 @@ public class GameLoop {
                 processAction(action);
             }
 
-            // ── 3. Update zone timers ────────────────────────────
+            // ── 3. Run collision + item spawner ─────────────────
+            collisionHandler.update();
+            itemSpawner.update();
+
+            // ── 4. Update zone timers ────────────────────────────
             updateZones();
 
-            // ── 4. Update frozen player timers ───────────────────
+            // ── 5. Update frozen player timers ───────────────────
             updateFrozenPlayers();
 
-            // ── 5. Tick game state ───────────────────────────────
+            // ── 6. Tick game state ───────────────────────────────
             gameState.tick(tickRateMs);
 
-            // ── 6. Check for game over ───────────────────────────
+            // ── 7. Check for game over ───────────────────────────
             if (gameState.getPhase() == GameState.GamePhase.FINISHED) {
                 Player winner = gameState.getWinner();
                 if (winner != null) {
@@ -137,7 +148,7 @@ public class GameLoop {
     private void updateFrozenPlayers() {
         for (Player player : gameState.getPlayers().values()) {
             if (player.isFrozen()) {
-                player.setFrozenTicksLeft(player.getFrozenTicksLeft() - 1);
+                player.setFrozenTicksLeft(Math.max(0, player.getFrozenTicksLeft() - 1));
             }
         }
     }

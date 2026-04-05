@@ -123,7 +123,7 @@ public class GameState {
     public List<Zone> getZones() {
         lock.readLock().lock();
         try {
-            return zones;
+            return new ArrayList<>(zones);
         } finally {
             lock.readLock().unlock();
         }
@@ -132,7 +132,7 @@ public class GameState {
     public List<Item> getItems() {
         lock.readLock().lock();
         try {
-            return items;
+            return new ArrayList<>(items);
         } finally {
             lock.readLock().unlock();
         }

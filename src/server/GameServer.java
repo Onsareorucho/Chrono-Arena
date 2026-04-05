@@ -48,7 +48,7 @@ public class GameServer {
         killSwitch        = new KillSwitch(gameState);
 
         // ── Initialize game loop ─────────────────────────────
-        gameLoop = new GameLoop(gameState, actionQueue, tickRateMs);
+        gameLoop = new GameLoop(gameState, actionQueue, collisionHandler, itemSpawner, tickRateMs);
 
         // ── Start networking ─────────────────────────────────
         // TODO: P2 hooks in here
