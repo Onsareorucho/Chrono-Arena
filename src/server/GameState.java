@@ -1,6 +1,7 @@
 package server;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -180,4 +181,70 @@ public class GameState {
             lock.readLock().unlock();
         }
     }
+
+    public int[] getSpawnPosition() {
+        lock.readLock().lock();
+        try {
+            int[][] spawnPoints = {
+                    { 0, 0 }, // top left
+                    { 19, 0 }, // top right
+                    { 0, 19 }, // bottom left
+                    { 19, 19 }, // bottom right
+                    { 9, 0 }, // top center
+                    { 9, 19 }, // bottom center
+                    { 0, 9 }, // left center
+                    { 19, 9 } // right center
+            };
+
+            // find first unoccupied spawn point
+            for (int[] spawn : spawnPoints) {
+                boolean occupied = players.values().stream()
+                        .anyMatch(p -> p.getPlayerPositionX() == spawn[0]
+                                && p.getPlayerPositionY() == spawn[1]);
+                if (!occupied)
+                    return spawn;
+            }
+
+            // all 8 points taken — fallback to center
+            System.out.println("All spawn points occupied — using center fallback");
+            return new int[] { 10, 10 };
+
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    public void handlePlayerDisconnect(String playerId) {
+        lock.writeLock().lock();
+        try {
+            for (Zone zone : zones) {
+                if (playerId.equals(zone.getControllingPlayerId())) {
+                    zone.setZoneState(ZoneState.GRACE);
+                    zone.setGraceTicksLeft(100);
+                    System.out.println("Zone " + zone.getZoneId() + " entering grace — owner disconnected");
+                }
+                if (playerId.equals(zone.getContestingPlayerId())) {
+                    zone.setZoneState(ZoneState.UNCLAIMED);
+                    zone.setContestingPlayerId(null);
+                    zone.setCaptureTicksLeft(60);
+                }
+            }
+            players.remove(playerId);
+            System.out.println("Player " + playerId + " removed from game");
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public Player getWinner() {
+        lock.readLock().lock();
+        try {
+            return players.values().stream()
+                    .max(Comparator.comparingInt(Player::getPlayerScore))
+                    .orElse(null);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
 }

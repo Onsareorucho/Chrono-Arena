@@ -16,9 +16,10 @@ public class Player {
     private int playerScore;
     private boolean isConnected;
     private int lastSeq;
+    private boolean hasSpeedBoost;
 
     public Player(String playerID, String playerName, int playerPositionX, int playerPositionY, int playerHealth,
-            boolean isArmed, int playerScore, boolean isConnected, int lastSeq) {
+            boolean isArmed, int playerScore, boolean isConnected, int lastSeq, boolean hasSpeedBoost) {
         this.playerId = playerID;
         this.playerName = playerName;
         this.playerPositionX = playerPositionX;
@@ -29,6 +30,7 @@ public class Player {
         this.playerScore = playerScore;
         this.isConnected = isConnected;
         this.lastSeq = lastSeq;
+        this.hasSpeedBoost = hasSpeedBoost;
     }
 
     public Player() {
@@ -112,5 +114,13 @@ public class Player {
 
     public void setPlayerName(String playerName) {
         this.playerName = playerName;
+    }
+
+    public boolean isHasSpeedBoost() {
+        return hasSpeedBoost;
+    }
+
+    public void setHasSpeedBoost(boolean hasSpeedBoost) {
+        this.hasSpeedBoost = hasSpeedBoost;
     }
 }

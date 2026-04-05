@@ -23,11 +23,10 @@ public class GameLoop {
 
     public void start() {
         scheduler.scheduleAtFixedRate(
-            this::tick,
-            0,
-            tickRateMs,
-            TimeUnit.MILLISECONDS
-        );
+                this::tick,
+                0,
+                tickRateMs,
+                TimeUnit.MILLISECONDS);
         System.out.println("Game loop started — tick rate: " + tickRateMs + "ms");
     }
 
@@ -62,9 +61,18 @@ public class GameLoop {
             // ── 5. Tick game state ───────────────────────────────
             gameState.tick(tickRateMs);
 
-            // ── 6. Broadcast state to all clients ────────────────
-            // TODO: P2 hooks in here
-            // tcpServerHandler.broadcast(gameState.snapshot());
+            // ── 6. Check for game over ───────────────────────────
+            if (gameState.getPhase() == GameState.GamePhase.FINISHED) {
+                Player winner = gameState.getWinner();
+                if (winner != null) {
+                    System.out.println("GAME OVER — Winner: " + winner.getPlayerName()
+                            + " with " + winner.getPlayerScore() + " points");
+                }
+                // TODO: P2 broadcasts GAME_OVER message to all clients
+                // tcpServerHandler.broadcastGameOver(winner);
+                stop();
+                return;
+            }
 
         } catch (Exception e) {
             System.err.println("Error during tick: " + e.getMessage());
