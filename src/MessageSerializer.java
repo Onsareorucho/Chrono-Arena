@@ -6,8 +6,6 @@ import java.io.*;
  * We use Java's built-in serialization - it's not the fastest but it's simple
  * and works with any Serializable object. Both TCP and UDP use this.
  * 
- * If you ever need better performance, you could swap this out for something
- * like Protocol Buffers or just manual byte packing.
  */
 public class MessageSerializer {
     
