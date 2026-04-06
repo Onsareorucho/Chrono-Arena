@@ -80,9 +80,10 @@ class PacketSequencerTest {
 
     @Test
     void packetExactlyAtWindowEdge_accepted() {
-        // Advance to seq=32
-        for (long seq = 0; seq <= 32; seq++) sequencer.accept(1, seq);
-        // seq=1 is exactly 31 behind (within window of 32)
+        // Advance to seq=32, but skip seq=0 so we can test it at the edge
+        sequencer.accept(1, 0L); // accept first
+        for (long seq = 2; seq <= 32; seq++) sequencer.accept(1, seq); // skip seq=1
+        // seq=1 is within window and was never seen — should be accepted
         assertTrue(sequencer.accept(1, 1L), "Packet at window edge should be accepted");
     }
 

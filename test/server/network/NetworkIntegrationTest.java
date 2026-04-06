@@ -201,10 +201,11 @@ class NetworkIntegrationTest {
 
         assertTrue(latch.await(3, TimeUnit.SECONDS), "Server should receive 3 UDP move packets");
         assertEquals(3, received.size());
+        // UDP doesn't guarantee ordering — just verify all 3 arrived with correct type
         assertTrue(received.stream().allMatch(a -> a.actionType == ActionMessage.ActionType.MOVE));
-        assertEquals(Direction.UP,    received.get(0).direction);
-        assertEquals(Direction.RIGHT, received.get(1).direction);
-        assertEquals(Direction.DOWN,  received.get(2).direction);
+        assertTrue(received.stream().anyMatch(a -> a.direction == Direction.UP));
+        assertTrue(received.stream().anyMatch(a -> a.direction == Direction.RIGHT));
+        assertTrue(received.stream().anyMatch(a -> a.direction == Direction.DOWN));
 
         udp.stop();
         tcp.stop();
@@ -252,6 +253,11 @@ class NetworkIntegrationTest {
 
         UDPClientHandler udp = new UDPClientHandler("localhost", jr.udpPort, jr.assignedPlayerId);
         udp.start();
+
+        final int pid = jr.assignedPlayerId;
+        udpServer.onActionReceived = action -> {
+            if (action.playerId == pid) deliveredCount.incrementAndGet();
+        };
 
         // Send the same sequence number twice by building ActionMessages manually
         ActionMessage first  = ActionMessage.move(jr.assignedPlayerId, 77L, Direction.UP);
