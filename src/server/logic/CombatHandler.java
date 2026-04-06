@@ -4,11 +4,10 @@ import server.Player;
 
 public class CombatHandler {
 
-    private static final int FREEZE_TICKS = 60; // 3 seconds frozen
-    private static final int POINTS_DEDUCTED = 15; // points lost when frozen
-    private static final int POINTS_AWARDED = 15; // points awarded to attacker
-    private static final int ATTACK_RANGE = 2; // tiles
-    private static final int WEAPON_COOLDOWN_TICKS = 200; // 10 seconds
+    private static final int FREEZE_TICKS    = 60; // 3 seconds frozen
+    private static final int POINTS_DEDUCTED = 15;
+    private static final int POINTS_AWARDED  = 15;
+    private static final int ATTACK_RANGE    = 2;  // tiles
 
     private final CollisionHandler collisionHandler;
 

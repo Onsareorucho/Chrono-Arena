@@ -61,33 +61,27 @@ public class ItemSpawner {
     }
 
     private int[] getSafeSpawnPosition() {
-        int maxAttempts = 20;
+        // snapshot once — avoids repeated lock cycles and list copies inside the loop
+        List<Item>   items   = gameState.getItems();
+        List<Zone>   zones   = gameState.getZones();
+        var          players = gameState.getPlayers().values();
 
-        for (int i = 0; i < maxAttempts; i++) {
+        for (int i = 0; i < 20; i++) {
             int x = random.nextInt(mapWidth);
             int y = random.nextInt(mapHeight);
 
-            // not on an existing item
-            boolean itemThere = gameState.getItems().stream()
-                .anyMatch(item -> item.getItemPositionX() == x
-                               && item.getItemPositionY() == y);
-
-            // not on a player
-            boolean playerThere = gameState.getPlayers().values().stream()
-                .anyMatch(p -> p.getPlayerPositionX() == x
-                            && p.getPlayerPositionY() == y);
-
-            // not inside a zone
-            boolean inZone = gameState.getZones().stream()
-                .anyMatch(z -> x >= z.getZonePositionX()
-                            && x < z.getZonePositionX() + z.getZoneWidth()
-                            && y >= z.getZonePositionY()
-                            && y < z.getZonePositionY() + z.getZoneHeight());
+            boolean itemThere   = items.stream()
+                .anyMatch(item -> item.getItemPositionX() == x && item.getItemPositionY() == y);
+            boolean playerThere = players.stream()
+                .anyMatch(p -> p.getPlayerPositionX() == x && p.getPlayerPositionY() == y);
+            boolean inZone      = zones.stream()
+                .anyMatch(z -> x >= z.getZonePositionX() && x < z.getZonePositionX() + z.getZoneWidth()
+                            && y >= z.getZonePositionY() && y < z.getZonePositionY() + z.getZoneHeight());
 
             if (!itemThere && !playerThere && !inZone) {
                 return new int[]{x, y};
             }
         }
-        return null; // no safe position found after 20 attempts
+        return null;
     }
 }

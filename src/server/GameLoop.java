@@ -16,6 +16,7 @@ public class GameLoop {
     private final ItemSpawner itemSpawner;
     private final ScheduledExecutorService scheduler;
     private final long tickRateMs;
+    private final List<Object> tickActions = new ArrayList<>();
 
     public GameLoop(GameState gameState, ActionQueue actionQueue,
                     CollisionHandler collisionHandler, ItemSpawner itemSpawner,
@@ -51,11 +52,11 @@ public class GameLoop {
             }
 
             // ── 1. Drain action queue ────────────────────────────
-            List<Object> actions = new ArrayList<>();
-            actionQueue.drainTo(actions);
+            tickActions.clear();
+            actionQueue.drainTo(tickActions);
 
             // ── 2. Process actions ───────────────────────────────
-            for (Object action : actions) {
+            for (Object action : tickActions) {
                 processAction(action);
             }
 
@@ -104,7 +105,7 @@ public class GameLoop {
 
                 case CAPTURING -> {
                     // count down capture timer
-                    int ticks = zone.getCaptureTicksLeft() - 1;
+                    int ticks = Math.max(0, zone.getCaptureTicksLeft() - 1);
                     zone.setCaptureTicksLeft(ticks);
                     if (ticks <= 0) {
                         // capture complete
@@ -117,7 +118,7 @@ public class GameLoop {
 
                 case GRACE -> {
                     // count down grace timer
-                    int ticks = zone.getGraceTicksLeft() - 1;
+                    int ticks = Math.max(0, zone.getGraceTicksLeft() - 1);
                     zone.setGraceTicksLeft(ticks);
                     if (ticks <= 0) {
                         // grace period expired — zone resets

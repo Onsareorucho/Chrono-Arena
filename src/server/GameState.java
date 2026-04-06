@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import server.logic.ZoneCaptureHandler;
 
 public class GameState {
 
@@ -220,13 +221,13 @@ public class GameState {
             for (Zone zone : zones) {
                 if (playerId.equals(zone.getControllingPlayerId())) {
                     zone.setZoneState(ZoneState.GRACE);
-                    zone.setGraceTicksLeft(100);
+                    zone.setGraceTicksLeft(ZoneCaptureHandler.GRACE_TICKS);
                     System.out.println("Zone " + zone.getZoneId() + " entering grace — owner disconnected");
                 }
                 if (playerId.equals(zone.getContestingPlayerId())) {
                     zone.setZoneState(ZoneState.UNCLAIMED);
                     zone.setContestingPlayerId(null);
-                    zone.setCaptureTicksLeft(60);
+                    zone.setCaptureTicksLeft(ZoneCaptureHandler.CAPTURE_TICKS);
                 }
             }
             players.remove(playerId);

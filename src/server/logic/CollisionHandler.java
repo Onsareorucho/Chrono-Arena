@@ -6,16 +6,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+
 public class CollisionHandler {
 
     private final GameState gameState;
     private final ZoneCaptureHandler zoneCaptureHandler;
-    private final CombatHandler combatHandler;
 
-    public CollisionHandler(GameState gameState, ZoneCaptureHandler zoneCaptureHandler, CombatHandler combatHandler) {
+    public CollisionHandler(GameState gameState, ZoneCaptureHandler zoneCaptureHandler) {
         this.gameState = gameState;
         this.zoneCaptureHandler = zoneCaptureHandler;
-        this.combatHandler = combatHandler;
     }
 
     // called every tick by GameLoop
@@ -82,8 +81,6 @@ public class CollisionHandler {
 
     // handle item collection
     private void handleItemPickup(Player player, Item item) {
-        item.setAvailable(false); // mark as collected
-
         switch (item.getItemType()) {
             case ENERGY -> {
                 player.setPlayerScore(player.getPlayerScore() + 10);

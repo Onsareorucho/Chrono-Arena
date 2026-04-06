@@ -36,13 +36,11 @@ public class GameServer {
         gameState.addZone(new Zone("C", 8,  10, 4, 4));
 
         // ── Initialize core components ───────────────────────
-        actionQueue       = new ActionQueue();
+        actionQueue        = new ActionQueue();
         zoneCaptureHandler = new ZoneCaptureHandler();
-        combatHandler     = new CombatHandler(null); // CollisionHandler set below
-        collisionHandler  = new CollisionHandler(gameState, zoneCaptureHandler, combatHandler);
+        collisionHandler   = new CollisionHandler(gameState, zoneCaptureHandler);
+        combatHandler      = new CombatHandler(collisionHandler);
 
-        // wire CollisionHandler into CombatHandler
-        combatHandler     = new CombatHandler(collisionHandler);
 
         itemSpawner       = new ItemSpawner(gameState, mapWidth, mapHeight);
         killSwitch        = new KillSwitch(gameState);
@@ -69,8 +67,9 @@ public class GameServer {
         System.out.println("Server stopped");
     }
 
-    // expose for P2 to access
-    public GameState getGameState()   { return gameState; }
-    public ActionQueue getActionQueue() { return actionQueue; }
-    public KillSwitch getKillSwitch() { return killSwitch; }
+    // expose for P2 / ActionProcessor
+    public GameState getGameState()       { return gameState; }
+    public ActionQueue getActionQueue()   { return actionQueue; }
+    public KillSwitch getKillSwitch()     { return killSwitch; }
+    public CombatHandler getCombatHandler() { return combatHandler; }
 }

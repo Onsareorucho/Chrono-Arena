@@ -1,6 +1,5 @@
 import server.*;
 import server.logic.*;
-import server.util.ConfigLoader;
 
 public class TestMain {
     public static void main(String[] args) throws InterruptedException {
@@ -26,11 +25,9 @@ public class TestMain {
 
         // wire handlers
         ZoneCaptureHandler zoneCaptureHandler = new ZoneCaptureHandler();
-        CombatHandler combatHandler = new CombatHandler(null);
-        CollisionHandler collisionHandler = new CollisionHandler(gameState, zoneCaptureHandler, combatHandler);
-        combatHandler = new CombatHandler(collisionHandler);
+        CollisionHandler collisionHandler = new CollisionHandler(gameState, zoneCaptureHandler);
+        CombatHandler combatHandler = new CombatHandler(collisionHandler);
         ItemSpawner itemSpawner = new ItemSpawner(gameState, 20, 20);
-        ActionQueue actionQueue = new ActionQueue();
 
         // ── Test 1: Zone Capture ─────────────────────────────
         System.out.println("--- Test 1: Zone Capture ---");
