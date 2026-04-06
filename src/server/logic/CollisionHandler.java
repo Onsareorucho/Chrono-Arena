@@ -1,6 +1,7 @@
 package server.logic;
 
 import server.*;
+import shared.GameConstants;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -83,8 +84,8 @@ public class CollisionHandler {
     private void handleItemPickup(Player player, Item item) {
         switch (item.getItemType()) {
             case ENERGY -> {
-                player.setPlayerScore(player.getPlayerScore() + 10);
-                System.out.println(player.getPlayerName() + " collected ENERGY +10 points");
+                player.setPlayerScore(player.getPlayerScore() + GameConstants.ENERGY_POINTS);
+                System.out.println(player.getPlayerName() + " collected ENERGY +" + GameConstants.ENERGY_POINTS + " points");
             }
             case FREEZE_RAY -> {
                 player.setArmed(true);
@@ -96,7 +97,8 @@ public class CollisionHandler {
             }
         }
 
-        // remove item from game state
+        // mark unavailable and remove from game state
+        item.setAvailable(false);
         gameState.removeItem(item.getItemId());
     }
 

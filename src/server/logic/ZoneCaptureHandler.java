@@ -1,11 +1,17 @@
 package server.logic;
 
 import server.*;
+import shared.GameConstants;
 
 public class ZoneCaptureHandler {
 
-    public static final int CAPTURE_TICKS = 60; // 3 seconds at 20 ticks/sec
-    public static final int GRACE_TICKS   = 100; // 5 seconds
+    public final int CAPTURE_TICKS;
+    public final int GRACE_TICKS;
+
+    public ZoneCaptureHandler(long tickRateMs) {
+        this.CAPTURE_TICKS = (int) (GameConstants.ZONE_CAPTURE_TIME_MS / tickRateMs);
+        this.GRACE_TICKS   = (int) (GameConstants.ZONE_GRACE_PERIOD_MS  / tickRateMs);
+    }
 
     // called when a player is detected inside a zone
     public void handlePlayerInZone(Player player, Zone zone) {
@@ -40,6 +46,7 @@ public class ZoneCaptureHandler {
                 // someone else enters a controlled zone — contest it
                 if (player.getPlayerId() != zone.getControllingPlayerId()) {
                     zone.setZoneState(ZoneState.CONTESTED);
+                    zone.setContestingPlayerId(player.getPlayerId());
                     System.out.println("Zone " + zone.getZoneId() + " is now CONTESTED");
                 }
             }

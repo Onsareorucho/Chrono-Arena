@@ -1,13 +1,15 @@
 package server;
 
+import shared.GameConstants;
+import shared.ItemType;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
 public class ItemSpawner {
 
-    private static final int SPAWN_INTERVAL_TICKS = 200; // every 10 seconds
-    private static final int MAX_ITEMS_ON_MAP     = 5;
+    private final int spawnIntervalTicks;
+    private static final int MAX_ITEMS_ON_MAP = GameConstants.MAX_ITEMS_ON_MAP;
 
     private final GameState gameState;
     private final int mapWidth;
@@ -15,19 +17,20 @@ public class ItemSpawner {
     private final Random random;
     private int ticksSinceLastSpawn;
 
-    public ItemSpawner(GameState gameState, int mapWidth, int mapHeight) {
+    public ItemSpawner(GameState gameState, int mapWidth, int mapHeight, long tickRateMs) {
         this.gameState = gameState;
         this.mapWidth = mapWidth;
         this.mapHeight = mapHeight;
         this.random = new Random();
         this.ticksSinceLastSpawn = 0;
+        this.spawnIntervalTicks = (int) (GameConstants.ITEM_SPAWN_INTERVAL_MS / tickRateMs);
     }
 
     // called every tick by GameLoop
     public void update() {
         ticksSinceLastSpawn++;
 
-        if (ticksSinceLastSpawn >= SPAWN_INTERVAL_TICKS) {
+        if (ticksSinceLastSpawn >= spawnIntervalTicks) {
             ticksSinceLastSpawn = 0;
 
             // don't spawn if map is full

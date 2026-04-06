@@ -2,6 +2,10 @@ package server;
 
 import server.logic.ActionQueue;
 import server.logic.CollisionHandler;
+import server.logic.CombatHandler;
+import shared.GameMessage;
+import shared.PlayerAction;
+import shared.PlayerInput;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -16,15 +20,17 @@ public class GameLoop {
     private final ItemSpawner itemSpawner;
     private final ScheduledExecutorService scheduler;
     private final long tickRateMs;
-    private final List<Object> tickActions = new ArrayList<>();
+    private final List<GameMessage> tickActions = new ArrayList<>();
+    private final CombatHandler combatHandler;
 
     public GameLoop(GameState gameState, ActionQueue actionQueue,
                     CollisionHandler collisionHandler, ItemSpawner itemSpawner,
-                    long tickRateMs) {
+                    CombatHandler combatHandler, long tickRateMs) {
         this.gameState = gameState;
         this.actionQueue = actionQueue;
         this.collisionHandler = collisionHandler;
         this.itemSpawner = itemSpawner;
+        this.combatHandler = combatHandler;
         this.tickRateMs = tickRateMs;
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
     }
@@ -35,6 +41,7 @@ public class GameLoop {
         this.actionQueue = null;
         this.collisionHandler = null;
         this.itemSpawner = null;
+        this.combatHandler = null;
         this.tickRateMs = 0;
         this.scheduler = null;
     }
@@ -66,7 +73,7 @@ public class GameLoop {
             actionQueue.drainTo(tickActions);
 
             // ── 2. Process actions ───────────────────────────────
-            for (Object action : tickActions) {
+            for (GameMessage action : tickActions) {
                 processAction(action);
             }
 
@@ -102,11 +109,43 @@ public class GameLoop {
         }
     }
 
-    private void processAction(Object action) {
-        // TODO: swap Object for ActionMessage when P4 delivers shared/
-        // ActionProcessor will handle routing to the right handler
-        // ActionProcessor.process(action, gameState);
-        System.out.println("Processing action: " + action);
+    private void processAction(GameMessage message) {
+        Player player = gameState.getPlayer(message.getSenderId());
+        if (player == null) return;
+
+        switch (message.getType()) {
+            case PLAYER_INPUT -> {
+                if (player.isFrozen()) break;
+                PlayerInput input = message.getPayloadAs(PlayerInput.class);
+                int newX = Math.max(0, Math.min(19, player.getPlayerPositionX() + input.getDirectionX()));
+                int newY = Math.max(0, Math.min(19, player.getPlayerPositionY() + input.getDirectionY()));
+                player.setPlayerPositionX(newX);
+                player.setPlayerPositionY(newY);
+                player.setLastSeq(message.getSequenceNumber());
+            }
+            case PLAYER_ACTION -> {
+                PlayerAction action = message.getPayloadAs(PlayerAction.class);
+                if (action.getActionType() == PlayerAction.ActionType.FREEZE_RAY) {
+                    // find closest player within attack range in the target direction
+                    Player best = null;
+                    int bestDist = Integer.MAX_VALUE;
+                    for (Player target : gameState.getPlayers().values()) {
+                        if (target.getPlayerId() == player.getPlayerId()) continue;
+                        if (!collisionHandler.isWithinAttackRange(player, target, CombatHandler.ATTACK_RANGE)) continue;
+                        // prefer targets in the aimed direction
+                        int dx = target.getPlayerPositionX() - player.getPlayerPositionX();
+                        int dy = target.getPlayerPositionY() - player.getPlayerPositionY();
+                        boolean inDirection = (action.getTargetDirectionX() == 0 || Integer.signum(dx) == action.getTargetDirectionX())
+                                           && (action.getTargetDirectionY() == 0 || Integer.signum(dy) == action.getTargetDirectionY());
+                        if (!inDirection) continue;
+                        int dist = Math.abs(dx) + Math.abs(dy);
+                        if (dist < bestDist) { best = target; bestDist = dist; }
+                    }
+                    if (best != null) combatHandler.handleFreezeAttack(player, best);
+                }
+            }
+            default -> System.out.println("Unhandled message type: " + message.getType()); 
+        }
     }
 
     public void updateZones() {

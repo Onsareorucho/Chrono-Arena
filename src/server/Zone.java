@@ -19,7 +19,7 @@ public class Zone {
         this.zoneWidth = zoneWidth;
         this.zoneHeight = zoneHeight;
         this.zoneState = ZoneState.UNCLAIMED;
-        this.captureTicksLeft = 60;
+        this.captureTicksLeft = 0;
         this.graceTicksLeft = 0;
         this.controllingPlayerId = -1;
         this.contestingPlayerId = -1;

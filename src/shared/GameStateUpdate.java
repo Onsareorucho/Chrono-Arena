@@ -131,10 +131,4 @@ public class GameStateUpdate implements Serializable {
     }
     
     
-    // Types of items that can spawn
-    public enum ItemType {
-        ENERGY,      // gives points
-        FREEZE_RAY,  // gives the freeze weapon
-        SPEED_BOOST  // temporary speed increase
-    }
 }

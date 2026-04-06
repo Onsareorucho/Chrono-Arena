@@ -1,5 +1,7 @@
 package server;
 
+import shared.ItemType;
+
 public class Item {
     private String itemId;
     private ItemType itemType;

@@ -1,18 +1,20 @@
 package server.logic;
 
 import server.Player;
+import shared.GameConstants;
 
 public class CombatHandler {
 
-    private static final int FREEZE_TICKS    = 60; // 3 seconds frozen
-    private static final int POINTS_DEDUCTED = 15;
-    private static final int POINTS_AWARDED  = 15;
-    private static final int ATTACK_RANGE    = 2;  // tiles
+    private static final int POINTS_DEDUCTED = GameConstants.FREEZE_RAY_POINT_PENALTY;
+    private static final int POINTS_AWARDED  = GameConstants.FREEZE_RAY_POINT_PENALTY;
+    public  static final int ATTACK_RANGE    = GameConstants.FREEZE_RAY_RANGE_TILES;
 
+    private final int freezeTicks;
     private final CollisionHandler collisionHandler;
 
-    public CombatHandler(CollisionHandler collisionHandler) {
+    public CombatHandler(CollisionHandler collisionHandler, long tickRateMs) {
         this.collisionHandler = collisionHandler;
+        this.freezeTicks = (int) (GameConstants.FREEZE_DURATION_MS / tickRateMs);
     }
 
     // called when a player fires their freeze weapon at a target
@@ -37,7 +39,7 @@ public class CombatHandler {
         }
 
         // apply freeze to target
-        target.setFrozenTicksLeft(FREEZE_TICKS);
+        target.setFrozenTicksLeft(freezeTicks);
 
         // deduct points from target
         int newScore = Math.max(0, target.getPlayerScore() - POINTS_DEDUCTED);
@@ -46,7 +48,7 @@ public class CombatHandler {
         // reward attacker
         attacker.setPlayerScore(attacker.getPlayerScore() + POINTS_AWARDED);
 
-        // disarm attacker and start cooldown
+        // disarm attacker
         attacker.setArmed(false);
 
         System.out.println(attacker.getPlayerName() + " froze " + target.getPlayerName()

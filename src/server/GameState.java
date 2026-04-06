@@ -1,12 +1,14 @@
 package server;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import server.logic.ZoneCaptureHandler;
+import shared.GameConstants;
 
 public class GameState {
 
@@ -21,14 +23,16 @@ public class GameState {
     private GamePhase phase = GamePhase.WAITING;
     private long tickNumber = 0;
     private long timeRemainingMs;
+    private final long tickRateMs;
 
     // Map so we can look up any player instantly by ID
     private final Map<Integer, Player> players = new ConcurrentHashMap<>();
     private final List<Zone> zones = new ArrayList<>();
     private final List<Item> items = new ArrayList<>();
 
-    public GameState(long gameDurationMs) {
+    public GameState(long gameDurationMs, long tickRateMs) {
         this.timeRemainingMs = gameDurationMs;
+        this.tickRateMs = tickRateMs;
     }
 
     // ── Write operations (game loop only) ────────────────────
@@ -115,7 +119,7 @@ public class GameState {
     public Map<Integer, Player> getPlayers() {
         lock.readLock().lock();
         try {
-            return players;
+            return Collections.unmodifiableMap(new HashMap<>(players));
         } finally {
             lock.readLock().unlock();
         }
@@ -221,13 +225,13 @@ public class GameState {
             for (Zone zone : zones) {
                 if (playerId == zone.getControllingPlayerId()) {
                     zone.setZoneState(ZoneState.GRACE);
-                    zone.setGraceTicksLeft(ZoneCaptureHandler.GRACE_TICKS);
+                    zone.setGraceTicksLeft((int)(GameConstants.ZONE_GRACE_PERIOD_MS / tickRateMs));
                     System.out.println("Zone " + zone.getZoneId() + " entering grace — owner disconnected");
                 }
                 if (playerId == zone.getContestingPlayerId()) {
                     zone.setZoneState(ZoneState.UNCLAIMED);
                     zone.setContestingPlayerId(-1);
-                    zone.setCaptureTicksLeft(ZoneCaptureHandler.CAPTURE_TICKS);
+                    zone.setCaptureTicksLeft((int)(GameConstants.ZONE_CAPTURE_TIME_MS / tickRateMs));
                 }
             }
             players.remove(playerId);

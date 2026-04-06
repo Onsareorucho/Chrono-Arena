@@ -36,7 +36,7 @@ public class GameServer {
         long tickRateMs     = config.getTickRateMs();
 
         // ── Initialize game state ────────────────────────────
-        gameState = new GameState(gameDurationMs);
+        gameState = new GameState(gameDurationMs, tickRateMs);
 
         // ── Set up zones ─────────────────────────────────────
         gameState.addZone(new Zone("A", 2,  2,  4, 4));
@@ -45,15 +45,15 @@ public class GameServer {
 
         // ── Initialize core components ───────────────────────
         actionQueue        = new ActionQueue();
-        zoneCaptureHandler = new ZoneCaptureHandler();
+        zoneCaptureHandler = new ZoneCaptureHandler(tickRateMs);
         collisionHandler   = new CollisionHandler(gameState, zoneCaptureHandler);
-        combatHandler      = new CombatHandler(collisionHandler);
+        combatHandler      = new CombatHandler(collisionHandler, tickRateMs);
 
-        itemSpawner       = new ItemSpawner(gameState, mapWidth, mapHeight);
+        itemSpawner       = new ItemSpawner(gameState, mapWidth, mapHeight, tickRateMs);
         killSwitch        = new KillSwitch(gameState);
 
         // ── Initialize game loop ─────────────────────────────
-        gameLoop = new GameLoop(gameState, actionQueue, collisionHandler, itemSpawner, tickRateMs);
+        gameLoop = new GameLoop(gameState, actionQueue, collisionHandler, itemSpawner, combatHandler, tickRateMs);
 
         // ── Start networking ─────────────────────────────────
         // TODO: P2 hooks in here
