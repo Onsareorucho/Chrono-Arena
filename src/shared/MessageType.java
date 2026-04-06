@@ -1,3 +1,4 @@
+package shared;
 
 public enum MessageType {
     
