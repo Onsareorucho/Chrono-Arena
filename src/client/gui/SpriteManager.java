@@ -48,26 +48,60 @@ public class SpriteManager {
             BufferedImage sheet = ImageIO.read(new File(ASSETS_PATH + filename));
 
             for (int i = 0; i < stateNames.length; i++) {
-                BufferedImage frame = sheet.getSubimage(i*frameWidth, 0, frameWidth, frameHeight);
+                BufferedImage frame = sheet.getSubimage(0, i*frameHeight, frameWidth, frameHeight);
 
                 sprites.put(baseName + "_" + stateNames[i], frame);
             }
-
+            System.out.println("Sprite sheet found: " + filename);
         } catch (Exception e) {
             System.err.println("Sprite sheet not found: " + filename);
         }
+    }
+
+    public void loadAnimationSheet(String baseName, String filename, int frameCount, int frameWidth, int frameHeight, String[] stateNames) {
+        try {
+            BufferedImage sheet = ImageIO.read(new File(ASSETS_PATH + filename));
+
+            for(int row = 0; row < stateNames.length; row++){
+                BufferedImage[] frames = new BufferedImage[frameCount];
+
+                for(int col = 0; col < frameCount; col++) {
+                    frames[col] = sheet.getSubimage(col*frameWidth, row*frameHeight, frameWidth, frameHeight);
+                }
+
+                animations.put(baseName + "_" + stateNames[row], frames);
+            }
+
+            System.out.println("Loaded animation: " + baseName);
+
+        } catch (Exception e) {
+            System.err.println("Animation sheet not found: " + filename);
+        }
+    }
+
+    public BufferedImage getAnimationFrames(String name, long elapsedMillis, int frameDurationMillis) {
+        BufferedImage[] frames = animations.get(name);
+        if(frames == null || frames.length == 0) {
+            return null;
+        }
+        int frameIndex = (int) (elapsedMillis / frameDurationMillis) % frames.length;
+        return frames[frameIndex];
+    }
+
+    public boolean hasAnimation(String name) {
+        return animations.containsKey(name) && animations.get(name) != null;
     }
 
     public void loadAllSprites() {
         String[] playerStates = {"idle", "walk_right", "walk_left", "frozen"};
 
         // ==== PLAYER SPRITES ====
-        loadSpriteStates("player_1", "player_1.png", 64, 64, playerStates);
-        loadSpriteStates("player_2", "player_2.png", 64, 64, playerStates);
-        loadSpriteStates("player_3", "player_3.png", 64, 64, playerStates);
-        loadSpriteStates("player_4", "player_4.png", 64, 64, playerStates);
-        loadSpriteStates("player_5", "player_5.png", 64, 64, playerStates);
-        loadSpriteStates("player_6", "player_6.png", 64, 64, playerStates);
+        loadAnimationSheet("player_1", "player_1.png", 2, 128, 128, playerStates); 
+        loadAnimationSheet("player_2", "player_2.png", 2, 128, 128, playerStates); 
+        loadAnimationSheet("player_3", "player_3.png", 2, 128, 128, playerStates); 
+        loadAnimationSheet("player_4", "player_4.png", 2, 128, 128, playerStates); 
+        loadAnimationSheet("player_5", "player_5.png", 2, 128, 128, playerStates); 
+        loadAnimationSheet("player_6", "player_6.png", 2, 128, 128, playerStates); 
         
         // ==== ZONE SPRITES ====
         loadSprite("zone_unclaimed", "zone_unclaimed.png");
@@ -82,6 +116,7 @@ public class SpriteManager {
         // ==== UI SPRTIES ====
         loadSprite("health_bar_border", "health_bar_border.png");
         loadSprite("cooldown_ready", "cooldown_ready.png");
+        loadSprite("cooldown_active", "cooldown_active.png");
 
         // ==== BACKGROUND ====
         loadSprite("arena_background", "arena_background.png");

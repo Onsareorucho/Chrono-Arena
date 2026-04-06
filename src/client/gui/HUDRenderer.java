@@ -1,9 +1,16 @@
 package client.gui;
 
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+
+import client.mock.MockGameState;
+import client.mock.Player;
 
 public class HUDRenderer {
 
@@ -13,8 +20,8 @@ public class HUDRenderer {
         this.spriteManager = spriteManager;
     }
 
-    public void render(Graphics2D g2d, GameState gameState, int screenWidth, int screenHeight) {
-        drawTimer(g2d, gameState.timeRemaningSeconds, screenWidth);
+    public void render(Graphics2D g2d, MockGameState gameState, int screenWidth, int screenHeight) {
+        drawTimer(g2d, gameState.timeRemainingSeconds, screenWidth);
         drawScoreboard(g2d, gameState, screenWidth);
         drawLocalPlayerHUD(g2d, gameState, screenWidth);
         drawControlHints(g2d, screenHeight);
@@ -37,9 +44,10 @@ public class HUDRenderer {
         g2d.drawString(timeStr, x, 38);
     }
 
-    private void drawScoreboard(Graphics2D g2d, GameState state, int screenWidth) { 
+    private void drawScoreboard(Graphics2D g2d, MockGameState state, int screenWidth) { 
         g2d.setColor(new Color( 0, 0, 0, 180));
         g2d.fillRoundRect(screenWidth - 145, 10, 135, 30 + (state.players.size() *25), 10, 10);
+        g2d.setColor(Color.WHITE);
         g2d.drawString("SCORES", screenWidth - 132, 32);
 
         List<Player> sorted = new ArrayList<>(state.players);
@@ -59,7 +67,7 @@ public class HUDRenderer {
         }
     }
 
-    private void drawLocalPlayerHUD(Graphics2D g2d, Gamestate gameState, int screenWidth) {
+    private void drawLocalPlayerHUD(Graphics2D g2d, MockGameState gameState, int screenWidth) {
         Player localPlayer = null;
         for (Player p : gameState.players) {
             if (p.id == 1) {

@@ -1,16 +1,14 @@
 package client;
 
-import client.gui.GameScreen;
-// TODO: import client.network.TCPClientHandler
-// TODO: import client.network.UDPClientHandler
+import javax.swing.JFrame;
 
-import javax.swing.*;
+import client.gui.GameScreen;
 
 public class GameClient {
     
     private GameScreen gameScreen;
     private InputHandler inputHandler;
-    private LocalPlayer localplayer;
+    private LocalPlayer localPlayer;
 
     // TODO:
     // private TCPClientHandler tcpHandler;

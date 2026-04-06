@@ -1,7 +1,16 @@
 package client.gui;
 
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+
+import client.mock.Item;
+import client.mock.MockGameState;
+import client.mock.Player;
+import client.mock.Zone;
 
 public class ArenaRenderer {
 
@@ -14,18 +23,28 @@ public class ArenaRenderer {
 
     private SpriteManager spriteManager;
 
+    private long startTime = System.currentTimeMillis();
+
     public ArenaRenderer(SpriteManager spriteManager) { 
         this.spriteManager = spriteManager;
     }
 
     // TODO: replace gamestate with official gamestate
-    public void render(Graphics2D g2d, GameState gameState) {
+    public void render(Graphics2D g2d, MockGameState gameState) {
+        drawBackground(g2d, 800, 600);
         drawZones(g2d, gameState);
         drawItems(g2d, gameState);
         drawPlayers(g2d, gameState);
     }
 
-    private void drawZones(Graphics2D g2d, GameState state) {
+    private void drawBackground(Graphics2D g2d, int width, int height) {
+        if (spriteManager.hasSprite("arena_background")) {
+            BufferedImage bg = spriteManager.getSprite("arena_background");
+            g2d.drawImage(bg, 0, 0, width, height, null);
+        }
+    }
+
+    private void drawZones(Graphics2D g2d, MockGameState state) {
         for(Zone zone : state.zones) {
             if (zone.isContested) {
                 g2d.setColor(ZONE_CONTESTED);
@@ -49,35 +68,74 @@ public class ArenaRenderer {
         }
     }
 
-    private void drawItems(Graphics2D g2d, GameState state) {
+    private void drawItems(Graphics2D g2d, MockGameState state) {
+        int itemSize = 48;
+        
         for(Item item : state.items) {
+            String spriteName = null;
+            Color fallbackColor;
+
             switch (item.type) {
                 case "ENERGY":
-                    g2d.setColor(ITEM_FREEZE);
+                    spriteName = "item_energy";
+                    fallbackColor = Color.YELLOW;
+                    break;
+                case "FREEZE_RAY":
+                    spriteName = "item_freeze_ray";
+                    fallbackColor = Color.CYAN;
+                    break;
+                case "SPEED":
+                    spriteName = "item_speed";
+                    fallbackColor = Color.MAGENTA;
+                    break;
+                default:
+                    fallbackColor = Color.WHITE;
+            }
+
+            if (spriteName != null && spriteManager.hasSprite(spriteName)) {
+                BufferedImage sprite = spriteManager.getSprite(spriteName);
+                g2d.drawImage(sprite, item.x - itemSize/2, item.y - itemSize/2, itemSize, itemSize, null);
+            } else {
+                g2d.setColor(fallbackColor);
+                g2d.fillOval(item.x - itemSize/2, item.y - itemSize/2, itemSize, itemSize);
+                g2d.setColor(Color.WHITE);
+                g2d.drawOval(item.x - itemSize/2, item.y -itemSize/2, itemSize, itemSize);
             }
         }
     }
 
-    private void drawPlayers(Graphics2D g2d, GameState state) {
-        int playerSize = 32;
+    private void drawPlayers(Graphics2D g2d, MockGameState state) {
+        int playerSize = 80;
+        long elasped = System.currentTimeMillis() - startTime;
 
         for(Player player : state.players) {
-            String spriteName;
+            String animName;
+            int frameSpeed;
 
             if (player.isFrozen) {
-                spriteName = "player_" + player.id + "_frozen";
+                animName = "player_" + player.id + "_frozen";
+                frameSpeed = 300;
             } else if (player.isMovingRight) {
-                spriteName = "player_" + player.id + "_walk_right";
+                animName = "player_" + player.id + "_walk_right";
+                frameSpeed = 150;
             } else if (player.isMovingLeft) {
-                spriteName = "player_" + player.id + "_walk_left";
+                animName = "player_" + player.id + "_walk_left";
+                frameSpeed = 150;
             } else {
-                spriteName = "player_" + player.id + "_idle";
+                animName = "player_" + player.id + "_idle";
+                frameSpeed = 400;
             }
 
-            BufferedImage sprite = spriteManager.getSprite(spriteName);
+            BufferedImage frame = null;
 
-            if (sprite != null) {
-                g2d.drawImage(sprite, player.x - playerSize/2, player.y - playerSize/2, playerSize, playerSize, null);
+            if (spriteManager.hasAnimation(animName)) {
+                frame = spriteManager.getAnimationFrames(animName, elasped, frameSpeed);
+            } else if (spriteManager.hasSprite(animName)) {
+                frame = spriteManager.getSprite(animName);
+            }
+
+            if (frame != null) {
+                g2d.drawImage(frame, player.x - playerSize/2, player.y - playerSize/2, playerSize, playerSize, null);
             } else {
                 g2d.setColor(spriteManager.getPlayerColor(player.id - 1));
                 g2d.fillOval(player.x - playerSize/2, player.y - playerSize/2, playerSize, playerSize);

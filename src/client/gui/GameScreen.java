@@ -1,12 +1,20 @@
 package client.gui;
 
-import javax.swing.*;
-import java.awt.*;
+import java.awt.Color; // TODO: replace with actual shared
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+
+import client.mock.MockGameState;
 
 public class GameScreen extends JPanel implements Runnable {
     
-    private static final int WIDTH = 800;
-    private static final int HEIGHT = 600;
+    private static final int BASE_WIDTH = 800;
+    private static final int BASE_HEIGHT = 600;
     private static final int TARGET_FPS = 60;
 
     private Thread gameThread;
@@ -20,8 +28,8 @@ public class GameScreen extends JPanel implements Runnable {
     private MockGameState gameState;
 
     public GameScreen() {
-        setPreferredSize(new Dimension(WIDTH, HEIGHT));
-        setBackground(new Color(40, 40, 40));
+        setPreferredSize(new Dimension(BASE_WIDTH, BASE_HEIGHT));
+        setBackground(Color.BLACK);
         setFocusable(true);
 
         spriteManager = new SpriteManager();
@@ -74,11 +82,26 @@ public class GameScreen extends JPanel implements Runnable {
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
 
+        g2d.setColor(Color.BLACK);
+        g2d.fillRect(0, 0, getWidth(), getHeight());
+
+        double scaleX = getWidth() / (double) BASE_WIDTH;
+        double scaleY = getHeight() / (double) BASE_HEIGHT;
+        double scale = Math.min(scaleX, scaleY);
+
+        int scaledWidth = (int) (BASE_WIDTH * scale);
+        int scaledHeight = (int) (BASE_HEIGHT * scale);
+        int offsetX = (getWidth() - scaledWidth)/2;
+        int offsetY = (getHeight() - scaledHeight)/2;
+
+        g2d.translate(offsetX, offsetY);
+        g2d.scale(scale, scale);
+
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
     
         arenaRenderer.render(g2d, gameState);
-
-        hudRenderer.render(g2d, gameState, getWidth(), getHeight());
+        hudRenderer.render(g2d, gameState, BASE_WIDTH, BASE_HEIGHT);
     }
 
     public static void main(String[] args) {
