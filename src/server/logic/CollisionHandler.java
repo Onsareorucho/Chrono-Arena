@@ -86,9 +86,9 @@ public class CollisionHandler {
                 player.setPlayerScore(player.getPlayerScore() + 10);
                 System.out.println(player.getPlayerName() + " collected ENERGY +10 points");
             }
-            case FREEZE_WEAPON -> {
+            case FREEZE_RAY -> {
                 player.setArmed(true);
-                System.out.println(player.getPlayerName() + " picked up FREEZE WEAPON");
+                System.out.println(player.getPlayerName() + " picked up FREEZE RAY");
             }
             case SPEED_BOOST -> {
                 player.setHasSpeedBoost(true);

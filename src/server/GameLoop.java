@@ -29,6 +29,16 @@ public class GameLoop {
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
     }
 
+    // lightweight constructor for testing — no scheduler, no action queue
+    public GameLoop(GameState gameState) {
+        this.gameState = gameState;
+        this.actionQueue = null;
+        this.collisionHandler = null;
+        this.itemSpawner = null;
+        this.tickRateMs = 0;
+        this.scheduler = null;
+    }
+
     public void start() {
         scheduler.scheduleAtFixedRate(
                 this::tick,
@@ -99,7 +109,7 @@ public class GameLoop {
         System.out.println("Processing action: " + action);
     }
 
-    private void updateZones() {
+    public void updateZones() {
         for (Zone zone : gameState.getZones()) {
             switch (zone.getZoneState()) {
 
@@ -146,7 +156,7 @@ public class GameLoop {
         }
     }
 
-    private void updateFrozenPlayers() {
+    public void updateFrozenPlayers() {
         for (Player player : gameState.getPlayers().values()) {
             if (player.isFrozen()) {
                 player.setFrozenTicksLeft(Math.max(0, player.getFrozenTicksLeft() - 1));

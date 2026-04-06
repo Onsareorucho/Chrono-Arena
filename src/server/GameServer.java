@@ -4,8 +4,9 @@ import server.logic.ActionQueue;
 import server.logic.CollisionHandler;
 import server.logic.CombatHandler;
 import server.logic.ZoneCaptureHandler;
-import server.util.ConfigLoader;
 import server.util.KillSwitch;
+import shared.GameConfig;
+import java.io.IOException;
 
 public class GameServer {
 
@@ -22,10 +23,17 @@ public class GameServer {
         System.out.println("ChronoArena server starting...");
 
         // ── Load config ──────────────────────────────────────
-        int mapWidth        = ConfigLoader.getInt("map.width");
-        int mapHeight       = ConfigLoader.getInt("map.height");
-        long gameDurationMs = ConfigLoader.getInt("game.duration.seconds") * 1000L;
-        long tickRateMs     = ConfigLoader.getInt("game.tick.rate.ms");
+        GameConfig config;
+        try {
+            config = new GameConfig();
+        } catch (IOException e) {
+            throw new RuntimeException("Could not load game.properties", e);
+        }
+
+        int mapWidth        = config.getMapWidth();
+        int mapHeight       = config.getMapHeight();
+        long gameDurationMs = config.getGameDurationSeconds() * 1000L;
+        long tickRateMs     = config.getTickRateMs();
 
         // ── Initialize game state ────────────────────────────
         gameState = new GameState(gameDurationMs);
@@ -41,7 +49,6 @@ public class GameServer {
         collisionHandler   = new CollisionHandler(gameState, zoneCaptureHandler);
         combatHandler      = new CombatHandler(collisionHandler);
 
-
         itemSpawner       = new ItemSpawner(gameState, mapWidth, mapHeight);
         killSwitch        = new KillSwitch(gameState);
 
@@ -50,8 +57,8 @@ public class GameServer {
 
         // ── Start networking ─────────────────────────────────
         // TODO: P2 hooks in here
-        // tcpServerHandler = new TCPServerHandler(gameState, actionQueue);
-        // udpServerHandler = new UDPServerHandler(actionQueue);
+        // tcpServerHandler = new TCPServerHandler(gameState, actionQueue, config);
+        // udpServerHandler = new UDPServerHandler(actionQueue, config);
         // tcpServerHandler.start();
         // udpServerHandler.start();
 
@@ -68,8 +75,8 @@ public class GameServer {
     }
 
     // expose for P2 / ActionProcessor
-    public GameState getGameState()       { return gameState; }
-    public ActionQueue getActionQueue()   { return actionQueue; }
-    public KillSwitch getKillSwitch()     { return killSwitch; }
-    public CombatHandler getCombatHandler() { return combatHandler; }
+    public GameState getGameState()          { return gameState; }
+    public ActionQueue getActionQueue()      { return actionQueue; }
+    public KillSwitch getKillSwitch()        { return killSwitch; }
+    public CombatHandler getCombatHandler()  { return combatHandler; }
 }
