@@ -27,7 +27,7 @@ public class ZoneCaptureHandler {
 
             case CAPTURING -> {
                 // someone else is already capturing — contest it
-                if (!player.getPlayerId().equals(zone.getContestingPlayerId())) {
+                if (player.getPlayerId() != zone.getContestingPlayerId()) {
                     zone.setZoneState(ZoneState.CONTESTED);
                     // store challenger so we know who resumes if the capturer leaves
                     zone.setControllingPlayerId(player.getPlayerId());
@@ -38,7 +38,7 @@ public class ZoneCaptureHandler {
 
             case CONTROLLED -> {
                 // someone else enters a controlled zone — contest it
-                if (!player.getPlayerId().equals(zone.getControllingPlayerId())) {
+                if (player.getPlayerId() != zone.getControllingPlayerId()) {
                     zone.setZoneState(ZoneState.CONTESTED);
                     System.out.println("Zone " + zone.getZoneId() + " is now CONTESTED");
                 }
@@ -46,7 +46,7 @@ public class ZoneCaptureHandler {
 
             case GRACE -> {
                 // owner came back during grace period — restore control
-                if (player.getPlayerId().equals(zone.getControllingPlayerId())) {
+                if (player.getPlayerId() == zone.getControllingPlayerId()) {
                     zone.setZoneState(ZoneState.CONTROLLED);
                     zone.setGraceTicksLeft(0);
                     System.out.println(player.getPlayerName() + " returned — zone " + zone.getZoneId() + " restored");
@@ -69,9 +69,9 @@ public class ZoneCaptureHandler {
 
             case CAPTURING -> {
                 // capturing player left — reset zone
-                if (player.getPlayerId().equals(zone.getContestingPlayerId())) {
+                if (player.getPlayerId() == zone.getContestingPlayerId()) {
                     zone.setZoneState(ZoneState.UNCLAIMED);
-                    zone.setContestingPlayerId(null);
+                    zone.setContestingPlayerId(-1);
                     zone.setCaptureTicksLeft(CAPTURE_TICKS);
                     System.out.println(player.getPlayerName() + " left zone " + zone.getZoneId() + " — capture reset");
                 }
@@ -79,7 +79,7 @@ public class ZoneCaptureHandler {
 
             case CONTROLLED -> {
                 // controlling player left — start grace timer
-                if (player.getPlayerId().equals(zone.getControllingPlayerId())) {
+                if (player.getPlayerId() == zone.getControllingPlayerId()) {
                     zone.setZoneState(ZoneState.GRACE);
                     zone.setGraceTicksLeft(GRACE_TICKS);
                     System.out.println(
@@ -89,12 +89,12 @@ public class ZoneCaptureHandler {
 
             case CONTESTED -> {
                 // one player left — the other resumes capturing
-                if (player.getPlayerId().equals(zone.getContestingPlayerId())) {
-                    String remaining = zone.getControllingPlayerId();
-                    zone.setControllingPlayerId(null);
+                if (player.getPlayerId() == zone.getContestingPlayerId()) {
+                    int remaining = zone.getControllingPlayerId();
+                    zone.setControllingPlayerId(-1);
                     startCapture(zone, remaining);
                     System.out.println("Zone " + zone.getZoneId() + " — contesting player left, capture resumed");
-                } else if (player.getPlayerId().equals(zone.getControllingPlayerId())) {
+                } else if (player.getPlayerId() == zone.getControllingPlayerId()) {
                     startCapture(zone, zone.getContestingPlayerId());
                     System.out.println("Zone " + zone.getZoneId() + " — controlling player left, contester resumes capture");
                 }
@@ -106,7 +106,7 @@ public class ZoneCaptureHandler {
         }
     }
 
-    private void startCapture(Zone zone, String playerId) {
+    private void startCapture(Zone zone, int playerId) {
         zone.setZoneState(ZoneState.CAPTURING);
         zone.setContestingPlayerId(playerId);
         zone.setCaptureTicksLeft(CAPTURE_TICKS);

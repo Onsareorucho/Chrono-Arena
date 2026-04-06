@@ -112,7 +112,7 @@ public class GameLoop {
                         zone.setZoneState(ZoneState.CONTROLLED);
                         System.out.println("Zone " + zone.getZoneId() + " captured by " + zone.getContestingPlayerId());
                         zone.setControllingPlayerId(zone.getContestingPlayerId());
-                        zone.setContestingPlayerId(null);
+                        zone.setContestingPlayerId(-1);
                     }
                 }
 
@@ -123,15 +123,15 @@ public class GameLoop {
                     if (ticks <= 0) {
                         // grace period expired — zone resets
                         zone.setZoneState(ZoneState.UNCLAIMED);
-                        zone.setControllingPlayerId(null);
+                        zone.setControllingPlayerId(-1);
                         System.out.println("Zone " + zone.getZoneId() + " lost — grace period expired");
                     }
                 }
 
                 case CONTROLLED -> {
                     // award points to controlling player every tick
-                    String ownerId = zone.getControllingPlayerId();
-                    if (ownerId != null) {
+                    int ownerId = zone.getControllingPlayerId();
+                    if (ownerId != -1) {
                         Player owner = gameState.getPlayer(ownerId);
                         if (owner != null) {
                             owner.setPlayerScore(owner.getPlayerScore() + 1);

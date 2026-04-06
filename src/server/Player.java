@@ -1,7 +1,7 @@
 package server;
 
 public class Player {
-    private String playerId;
+    private int playerId;
     private String playerName;
     private int playerPositionX;
     private int playerPositionY;
@@ -18,7 +18,7 @@ public class Player {
     private int lastSeq;
     private boolean hasSpeedBoost;
 
-    public Player(String playerID, String playerName, int playerPositionX, int playerPositionY, int playerHealth,
+    public Player(int playerID, String playerName, int playerPositionX, int playerPositionY, int playerHealth,
             boolean isArmed, int playerScore, boolean isConnected, int lastSeq, boolean hasSpeedBoost) {
         this.playerId = playerID;
         this.playerName = playerName;
@@ -52,7 +52,7 @@ public class Player {
         return lastSeq;
     }
 
-    public String getPlayerId() {
+    public int getPlayerId() {
         return playerId;
     }
 
@@ -108,7 +108,7 @@ public class Player {
         this.frozenTicksLeft = frozenTicksLeft;
     }
 
-    public void setPlayerId(String playerId) {
+    public void setPlayerId(int playerId) {
         this.playerId = playerId;
     }
 

@@ -23,7 +23,7 @@ public class GameState {
     private long timeRemainingMs;
 
     // Map so we can look up any player instantly by ID
-    private final Map<String, Player> players = new ConcurrentHashMap<>();
+    private final Map<Integer, Player> players = new ConcurrentHashMap<>();
     private final List<Zone> zones = new ArrayList<>();
     private final List<Item> items = new ArrayList<>();
 
@@ -42,7 +42,7 @@ public class GameState {
         }
     }
 
-    public void removePlayer(String playerId) {
+    public void removePlayer(int playerId) {
         lock.writeLock().lock();
         try {
             players.remove(playerId);
@@ -103,7 +103,7 @@ public class GameState {
 
     // ── Read operations (network layer calls these) ───────────
 
-    public Player getPlayer(String playerId) {
+    public Player getPlayer(int playerId) {
         lock.readLock().lock();
         try {
             return players.get(playerId);
@@ -112,7 +112,7 @@ public class GameState {
         }
     }
 
-    public Map<String, Player> getPlayers() {
+    public Map<Integer, Player> getPlayers() {
         lock.readLock().lock();
         try {
             return players;
@@ -215,18 +215,18 @@ public class GameState {
         }
     }
 
-    public void handlePlayerDisconnect(String playerId) {
+    public void handlePlayerDisconnect(int playerId) {
         lock.writeLock().lock();
         try {
             for (Zone zone : zones) {
-                if (playerId.equals(zone.getControllingPlayerId())) {
+                if (playerId == zone.getControllingPlayerId()) {
                     zone.setZoneState(ZoneState.GRACE);
                     zone.setGraceTicksLeft(ZoneCaptureHandler.GRACE_TICKS);
                     System.out.println("Zone " + zone.getZoneId() + " entering grace — owner disconnected");
                 }
-                if (playerId.equals(zone.getContestingPlayerId())) {
+                if (playerId == zone.getContestingPlayerId()) {
                     zone.setZoneState(ZoneState.UNCLAIMED);
-                    zone.setContestingPlayerId(null);
+                    zone.setContestingPlayerId(-1);
                     zone.setCaptureTicksLeft(ZoneCaptureHandler.CAPTURE_TICKS);
                 }
             }

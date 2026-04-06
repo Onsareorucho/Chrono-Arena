@@ -8,8 +8,8 @@ public class Zone {
     private int zoneHeight;
     private int captureTicksLeft;
     private int graceTicksLeft;
-    private String controllingPlayerId;
-    private String contestingPlayerId;
+    private int controllingPlayerId;
+    private int contestingPlayerId;
     private ZoneState zoneState;
 
     public Zone(String zoneId, int zonePositionX, int zonePositionY, int zoneWidth, int zoneHeight) {
@@ -21,8 +21,8 @@ public class Zone {
         this.zoneState = ZoneState.UNCLAIMED;
         this.captureTicksLeft = 60;
         this.graceTicksLeft = 0;
-        this.controllingPlayerId = null;
-        this.contestingPlayerId = null;
+        this.controllingPlayerId = -1;
+        this.contestingPlayerId = -1;
     }
 
     public Zone() {
@@ -56,11 +56,11 @@ public class Zone {
         return graceTicksLeft;
     }
 
-    public String getControllingPlayerId() {
+    public int getControllingPlayerId() {
         return controllingPlayerId;
     }
 
-    public String getContestingPlayerId() {
+    public int getContestingPlayerId() {
         return contestingPlayerId;
     }
 
@@ -72,11 +72,11 @@ public class Zone {
         this.zoneState = zoneState;
     }
 
-    public void setControllingPlayerId(String controllingPlayerId) {
+    public void setControllingPlayerId(int controllingPlayerId) {
         this.controllingPlayerId = controllingPlayerId;
     }
 
-    public void setContestingPlayerId(String contestingPlayerId) {
+    public void setContestingPlayerId(int contestingPlayerId) {
         this.contestingPlayerId = contestingPlayerId;
     }
 

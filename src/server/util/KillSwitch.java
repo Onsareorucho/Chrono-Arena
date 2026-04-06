@@ -12,7 +12,7 @@ public class KillSwitch {
     }
 
     // called by admin or erratic behavior detector
-    public void killPlayer(String playerId) {
+    public void killPlayer(int playerId) {
         Player player = gameState.getPlayer(playerId);
 
         if (player == null) {
