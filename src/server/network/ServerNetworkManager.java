@@ -1,30 +1,31 @@
 package server.network;
 
+import server.GameStateSnapshot;
 import server.logic.ActionQueue;
 import shared.*;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 /**
- * ServerNetworkManager — single entry point for networking on the server side.
+ * ServerNetworkManager — single entry point for all networking on the server side.
  *
- * Moses hooks this into GameServer.java where the TODO comments are:
- *
+ * Wired into GameServer.java:
  *   ServerNetworkManager net = new ServerNetworkManager(config, actionQueue);
- *   net.onPlayerJoined = gameState::addPlayer;
- *   net.onPlayerLeft   = gameState::removePlayer;
+ *   net.onPlayerJoined = playerId -> gameState.addPlayer(new Player(playerId, ...));
+ *   net.onPlayerLeft   = gameState::handlePlayerDisconnect;
  *   net.start();
  *
- * Then in GameLoop each tick:
- *   net.broadcastGameState(snapshot);
+ * Called from GameLoop each tick:
+ *   net.broadcastGameState(gameState.snapshot());
  *   net.broadcastScores(scoreMap);
  *
- * KILL_SWITCH (via Moses's KillSwitch class or directly):
- *   net.killPlayer(playerId, "Too many invalid packets");
+ * KILL_SWITCH (via KillSwitch.java):
+ *   net.killPlayer(playerId, reason);
  */
 public class ServerNetworkManager {
 
@@ -35,10 +36,10 @@ public class ServerNetworkManager {
 
     // ── Callbacks ──────────────────────────────────────────────
 
-    /** Wire to GameState.addPlayer() */
+    /** Wire to: playerId -> gameState.addPlayer(new Player(playerId, ...)) */
     public Consumer<Integer> onPlayerJoined = id -> {};
 
-    /** Wire to GameState.removePlayer() */
+    /** Wire to: gameState::handlePlayerDisconnect */
     public Consumer<Integer> onPlayerLeft = id -> {};
 
     // ──────────────────────────────────────────────────────────
@@ -67,17 +68,17 @@ public class ServerNetworkManager {
 
     // ── Broadcasting ───────────────────────────────────────────
 
-    /** Broadcast full game state to all clients every tick. */
-    public void broadcastGameState(GameStateUpdate state) {
-        tcp.broadcast(new GameMessage(MessageType.GAME_STATE_UPDATE, state));
+    /** Broadcast full game state snapshot to all clients every tick. */
+    public void broadcastGameState(GameStateSnapshot snapshot) {
+        tcp.broadcast(new GameMessage(MessageType.GAME_STATE_UPDATE, (java.io.Serializable) snapshot));
     }
 
-    /** Broadcast score update to all clients. */
-    public void broadcastScores(java.io.Serializable scorePayload) {
-        tcp.broadcast(new GameMessage(MessageType.SCORE_UPDATE, scorePayload));
+    /** Broadcast score map to all clients. */
+    public void broadcastScores(Map<Integer, Integer> scores) {
+        tcp.broadcast(new GameMessage(MessageType.SCORE_UPDATE, (Serializable) scores));
     }
 
-    /** Broadcast a game event (zone captured, item picked up, etc.) */
+    /** Broadcast a game event (zone captured, item picked up, freeze, etc.) */
     public void broadcastEvent(GameEvent event) {
         tcp.broadcast(new GameMessage(MessageType.GAME_EVENT, event));
     }
@@ -87,14 +88,14 @@ public class ServerNetworkManager {
         tcp.broadcast(new GameMessage(MessageType.GAME_END, result));
     }
 
-    /** Send to one specific player only. */
+    /** Send a message to one specific player only. */
     public void sendTo(int playerId, GameMessage message) {
         tcp.sendTo(playerId, message);
     }
 
     // ── KILL_SWITCH ────────────────────────────────────────────
 
-    /** Forcibly disconnect a misbehaving client. */
+    /** Forcibly disconnect a misbehaving client. Called by KillSwitch.java. */
     public void killPlayer(int playerId, String reason) {
         tcp.kill(playerId, reason);
     }

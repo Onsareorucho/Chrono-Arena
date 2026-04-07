@@ -1,9 +1,13 @@
 package server;
 
+import java.io.Serializable;
 import java.util.List;
 
 // Immutable copy of GameState — safe to serialize and send over the network
-public class GameStateSnapshot {
+public class GameStateSnapshot implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
     public final GameState.GamePhase phase;
     public final long tickNumber;
     public final long timeRemainingMs;

@@ -3,11 +3,17 @@ package server;
 import server.logic.ActionQueue;
 import server.logic.CollisionHandler;
 import server.logic.CombatHandler;
+import server.network.ServerNetworkManager;
 import shared.GameMessage;
+import shared.GameResult;
+import shared.MessageType;
 import shared.PlayerAction;
 import shared.PlayerInput;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -22,28 +28,32 @@ public class GameLoop {
     private final long tickRateMs;
     private final List<GameMessage> tickActions = new ArrayList<>();
     private final CombatHandler combatHandler;
+    private final ServerNetworkManager networkManager; // P2
 
     public GameLoop(GameState gameState, ActionQueue actionQueue,
                     CollisionHandler collisionHandler, ItemSpawner itemSpawner,
-                    CombatHandler combatHandler, long tickRateMs) {
-        this.gameState = gameState;
-        this.actionQueue = actionQueue;
+                    CombatHandler combatHandler, long tickRateMs,
+                    ServerNetworkManager networkManager) {
+        this.gameState        = gameState;
+        this.actionQueue      = actionQueue;
         this.collisionHandler = collisionHandler;
-        this.itemSpawner = itemSpawner;
-        this.combatHandler = combatHandler;
-        this.tickRateMs = tickRateMs;
-        this.scheduler = Executors.newSingleThreadScheduledExecutor();
+        this.itemSpawner      = itemSpawner;
+        this.combatHandler    = combatHandler;
+        this.tickRateMs       = tickRateMs;
+        this.networkManager   = networkManager;
+        this.scheduler        = Executors.newSingleThreadScheduledExecutor();
     }
 
-    // lightweight constructor for testing — no scheduler, no action queue
+    // lightweight constructor for testing — no scheduler, no network
     public GameLoop(GameState gameState) {
-        this.gameState = gameState;
-        this.actionQueue = null;
+        this.gameState        = gameState;
+        this.actionQueue      = null;
         this.collisionHandler = null;
-        this.itemSpawner = null;
-        this.combatHandler = null;
-        this.tickRateMs = 0;
-        this.scheduler = null;
+        this.itemSpawner      = null;
+        this.combatHandler    = null;
+        this.tickRateMs       = 0;
+        this.networkManager   = null;
+        this.scheduler        = null;
     }
 
     public void start() {
@@ -77,7 +87,7 @@ public class GameLoop {
                 processAction(action);
             }
 
-            // ── 3. Run collision + item spawner ─────────────────
+            // ── 3. Run collision + item spawner ──────────────────
             collisionHandler.update();
             itemSpawner.update();
 
@@ -90,15 +100,48 @@ public class GameLoop {
             // ── 6. Tick game state ───────────────────────────────
             gameState.tick(tickRateMs);
 
-            // ── 7. Check for game over ───────────────────────────
+            // ── 7. Broadcast state to all clients (P2) ───────────
+            if (networkManager != null) {
+                networkManager.broadcastGameState(gameState.snapshot());
+
+                // Build score map and broadcast
+                Map<Integer, Player> players = gameState.getPlayers();
+                java.util.HashMap<Integer, Integer> scores = new java.util.HashMap<>();
+                for (Map.Entry<Integer, Player> e : players.entrySet()) {
+                    scores.put(e.getKey(), e.getValue().getPlayerScore());
+                }
+                networkManager.broadcastScores(scores);
+            }
+
+            // ── 8. Check for game over ───────────────────────────
             if (gameState.getPhase() == GameState.GamePhase.FINISHED) {
                 Player winner = gameState.getWinner();
                 if (winner != null) {
                     System.out.println("GAME OVER — Winner: " + winner.getPlayerName()
                             + " with " + winner.getPlayerScore() + " points");
                 }
-                // TODO: P2 broadcasts GAME_OVER message to all clients
-                // tcpServerHandler.broadcastGameOver(winner);
+
+                // Broadcast GAME_OVER to all clients (P2)
+                if (networkManager != null) {
+                    // Build leaderboard
+                    List<GameResult.PlayerScore> leaderboard = new ArrayList<>();
+                    for (Player p : gameState.getPlayers().values()) {
+                        leaderboard.add(new GameResult.PlayerScore(
+                            p.getPlayerId(), p.getPlayerName(), p.getPlayerScore(),
+                            0, 0, 0, 0
+                        ));
+                    }
+                    // Sort by score descending
+                    leaderboard.sort((a, b) -> b.totalScore - a.totalScore);
+
+                    int winnerId   = winner != null ? winner.getPlayerId() : -1;
+                    String winnerName = winner != null ? winner.getPlayerName() : "None";
+
+                    GameResult result = new GameResult(leaderboard, winnerId,
+                                                       winnerName, gameState.getTimeRemainingMs());
+                    networkManager.broadcastGameOver(result);
+                }
+
                 stop();
                 return;
             }
@@ -121,30 +164,13 @@ public class GameLoop {
                 int newY = Math.max(0, Math.min(19, player.getPlayerPositionY() + input.getDirectionY()));
                 player.setPlayerPositionX(newX);
                 player.setPlayerPositionY(newY);
-                player.setLastSeq(message.getSequenceNumber());
             }
             case PLAYER_ACTION -> {
+                if (player.isFrozen()) break;
                 PlayerAction action = message.getPayloadAs(PlayerAction.class);
-                if (action.getActionType() == PlayerAction.ActionType.FREEZE_RAY) {
-                    // find closest player within attack range in the target direction
-                    Player best = null;
-                    int bestDist = Integer.MAX_VALUE;
-                    for (Player target : gameState.getPlayers().values()) {
-                        if (target.getPlayerId() == player.getPlayerId()) continue;
-                        if (!collisionHandler.isWithinAttackRange(player, target, CombatHandler.ATTACK_RANGE)) continue;
-                        // prefer targets in the aimed direction
-                        int dx = target.getPlayerPositionX() - player.getPlayerPositionX();
-                        int dy = target.getPlayerPositionY() - player.getPlayerPositionY();
-                        boolean inDirection = (action.getTargetDirectionX() == 0 || Integer.signum(dx) == action.getTargetDirectionX())
-                                           && (action.getTargetDirectionY() == 0 || Integer.signum(dy) == action.getTargetDirectionY());
-                        if (!inDirection) continue;
-                        int dist = Math.abs(dx) + Math.abs(dy);
-                        if (dist < bestDist) { best = target; bestDist = dist; }
-                    }
-                    if (best != null) combatHandler.handleFreezeAttack(player, best);
-                }
+                // action handled by CombatHandler when freeze ray is fired directly
             }
-            default -> System.out.println("Unhandled message type: " + message.getType()); 
+            default -> System.out.println("Unhandled message type: " + message.getType());
         }
     }
 
@@ -153,11 +179,9 @@ public class GameLoop {
             switch (zone.getZoneState()) {
 
                 case CAPTURING -> {
-                    // count down capture timer
                     int ticks = Math.max(0, zone.getCaptureTicksLeft() - 1);
                     zone.setCaptureTicksLeft(ticks);
                     if (ticks <= 0) {
-                        // capture complete
                         zone.setZoneState(ZoneState.CONTROLLED);
                         System.out.println("Zone " + zone.getZoneId() + " captured by " + zone.getContestingPlayerId());
                         zone.setControllingPlayerId(zone.getContestingPlayerId());
@@ -166,11 +190,9 @@ public class GameLoop {
                 }
 
                 case GRACE -> {
-                    // count down grace timer
                     int ticks = Math.max(0, zone.getGraceTicksLeft() - 1);
                     zone.setGraceTicksLeft(ticks);
                     if (ticks <= 0) {
-                        // grace period expired — zone resets
                         zone.setZoneState(ZoneState.UNCLAIMED);
                         zone.setControllingPlayerId(-1);
                         System.out.println("Zone " + zone.getZoneId() + " lost — grace period expired");
@@ -178,7 +200,6 @@ public class GameLoop {
                 }
 
                 case CONTROLLED -> {
-                    // award points to controlling player every tick
                     int ownerId = zone.getControllingPlayerId();
                     if (ownerId != -1) {
                         Player owner = gameState.getPlayer(ownerId);
@@ -188,9 +209,7 @@ public class GameLoop {
                     }
                 }
 
-                case CONTESTED, UNCLAIMED -> {
-                    // nothing to count down
-                }
+                case CONTESTED, UNCLAIMED -> {}
             }
         }
     }
