@@ -1,7 +1,7 @@
 package server.network;
 
-import shared.GameConstants;
-import shared.protocol.*;
+import shared.*;
+import server.logic.ActionQueue;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -16,63 +16,46 @@ import java.util.logging.Logger;
 /**
  * TCPServerHandler manages all TCP connections for ChronoArena.
  *
- * Responsibilities:
- *  - Accept incoming client connections in a dedicated acceptor thread
- *  - Spawn one reader thread per connected client
- *  - Process JoinRequest / Heartbeat messages
- *  - Broadcast GameStateUpdate, ScoreUpdate, PlayerEvent to all clients
- *  - Detect and evict dead/erratic clients (heartbeat monitor)
- *  - Expose kill(playerId) for the KILL_SWITCH feature
+ * Integrates with Moses's GameServer via:
+ *   - onPlayerJoined callback → GameState.addPlayer()
+ *   - onPlayerLeft callback  → GameState.removePlayer()
+ *   - broadcast(GameMessage) → called by GameLoop each tick
+ *
+ * Uses Andrew's GameMessage + MessageSerializer for all serialization.
  *
  * Threading model:
- *  - 1 acceptor thread (blocks on ServerSocket.accept)
- *  - 1 reader thread per client (blocks on ClientConnection.receive)
- *  - 1 heartbeat monitor thread
- *  - Broadcast calls may come from the game loop thread — all client maps
- *    use ConcurrentHashMap so no extra locking is needed for reads.
- *
- * Integration points:
- *  - Set onPlayerJoined / onPlayerLeft / onMessageReceived callbacks
- *    so the server core (Person 1) can react without polling.
+ *   - 1 acceptor thread (blocks on ServerSocket.accept)
+ *   - 1 reader thread per connected client
+ *   - 1 heartbeat monitor thread
+ *   - broadcast() is safe to call from the game loop thread
  */
 public class TCPServerHandler {
 
     private static final Logger LOG = Logger.getLogger(TCPServerHandler.class.getName());
 
     private final int tcpPort;
-    private final int udpPort; // included in JoinResponse so client knows where to send UDP
+    private final int udpPort;
 
     private final ConcurrentHashMap<Integer, ClientConnection> clients = new ConcurrentHashMap<>();
     private final AtomicInteger nextPlayerId = new AtomicInteger(1);
 
     private final ExecutorService clientPool = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r);
+        Thread t = new Thread(r, "tcp-client-reader");
         t.setDaemon(true);
-        t.setName("tcp-client-reader");
         return t;
     });
 
     private volatile boolean running = false;
     private ServerSocket serverSocket;
 
-    // ──────────────────────────────────────────────────────────
-    // Callbacks — set these before calling start()
-    // ──────────────────────────────────────────────────────────
+    // ── Callbacks — set these before calling start() ───────────
 
-    /** Called (on the reader thread) when a new player has joined. */
+    /** Called when a new player successfully joins. */
     public Consumer<Integer> onPlayerJoined = id -> {};
 
-    /** Called (on reader or monitor thread) when a player disconnects. */
+    /** Called when a player disconnects or is evicted. */
     public Consumer<Integer> onPlayerLeft = id -> {};
 
-    /**
-     * Called (on the reader thread) for every message received from a client
-     * EXCEPT JoinRequest and Heartbeat, which are handled internally.
-     */
-    public Consumer<Message> onMessageReceived = msg -> {};
-
-    // ──────────────────────────────────────────────────────────
-    // Construction & lifecycle
     // ──────────────────────────────────────────────────────────
 
     public TCPServerHandler(int tcpPort, int udpPort) {
@@ -80,18 +63,15 @@ public class TCPServerHandler {
         this.udpPort = udpPort;
     }
 
-    /** Bind the server socket and start the acceptor and monitor threads. */
     public void start() throws IOException {
         serverSocket = new ServerSocket(tcpPort);
         running = true;
         LOG.info("TCP server listening on port " + tcpPort);
 
-        // Acceptor thread
         Thread acceptor = new Thread(this::acceptLoop, "tcp-acceptor");
         acceptor.setDaemon(true);
         acceptor.start();
 
-        // Heartbeat monitor thread
         Thread monitor = new Thread(this::heartbeatMonitorLoop, "tcp-heartbeat-monitor");
         monitor.setDaemon(true);
         monitor.start();
@@ -100,103 +80,100 @@ public class TCPServerHandler {
     public void stop() {
         running = false;
         try { if (serverSocket != null) serverSocket.close(); } catch (IOException ignored) {}
-        broadcastRaw(new GameOver(Map.of(), -1)); // notify clients
+        // Notify all clients server is shutting down
+        broadcast(new GameMessage(MessageType.KICK, KickNotification.serverShuttingDown()));
         clients.values().forEach(ClientConnection::close);
         clientPool.shutdownNow();
     }
 
-    // ──────────────────────────────────────────────────────────
-    // Accept loop
-    // ──────────────────────────────────────────────────────────
+    // ── Accept loop ────────────────────────────────────────────
 
     private void acceptLoop() {
         while (running) {
             try {
                 Socket socket = serverSocket.accept();
-                socket.setTcpNoDelay(true); // reduce latency for small packets
-                socket.setSoTimeout(GameConstants.HEARTBEAT_INTERVAL_MS
-                                    * (GameConstants.MAX_MISSED_HEARTBEATS + 1));
-
+                socket.setTcpNoDelay(true);
                 int playerId = nextPlayerId.getAndIncrement();
                 ClientConnection conn = new ClientConnection(playerId, socket);
-
                 LOG.info("New TCP connection from " + conn.getRemoteAddress()
-                         + " → assigned playerId=" + playerId);
-
-                // Spawn reader thread for this client
+                         + " → playerId=" + playerId);
                 clientPool.submit(() -> handleClient(conn));
-
             } catch (IOException e) {
                 if (running) LOG.log(Level.WARNING, "Accept error: " + e.getMessage());
             }
         }
     }
 
-    // ──────────────────────────────────────────────────────────
-    // Per-client reader
-    // ──────────────────────────────────────────────────────────
+    // ── Per-client reader ──────────────────────────────────────
 
     private void handleClient(ClientConnection conn) {
         int playerId = conn.getPlayerId();
 
-        // First message must be a JoinRequest
-        Message first = conn.receive();
-        if (first == null || first.type != Message.MessageType.JOIN_REQUEST) {
-            LOG.warning("Player " + playerId + " did not send JoinRequest — dropping");
+        // First message must be JOIN_REQUEST
+        GameMessage first = conn.receive();
+        if (first == null || first.getType() != MessageType.JOIN_REQUEST) {
+            LOG.warning("Player " + playerId + " did not send JOIN_REQUEST — dropping");
             conn.close();
             return;
         }
 
-        JoinRequest jr = (JoinRequest) first;
-        LOG.info("Player " + playerId + " joining as '" + jr.playerName + "'");
+        JoinRequest jr = first.getPayloadAs(JoinRequest.class);
+        LOG.info("Player " + playerId + " joining as '" + jr.getPlayerName() + "'");
 
-        // Register and acknowledge
+        // Register client
         clients.put(playerId, conn);
-        conn.send(JoinResponse.accept(playerId, udpPort));
+
+        // Send JOIN_RESPONSE with player ID and UDP port
+        JoinResponse response = new JoinResponse(
+            playerId, 5.0f, 5.0f,          // start position
+            20, 20,                          // map size (overridden by config in real game)
+            180000L,                         // time remaining ms
+            udpPort
+        );
+        conn.send(new GameMessage(MessageType.JOIN_RESPONSE, response));
         onPlayerJoined.accept(playerId);
 
         // Notify all others
-        broadcast(new PlayerEvent(PlayerEvent.EventType.JOINED, playerId,
-                                  jr.playerName + " joined"));
+        broadcast(new GameMessage(MessageType.PLAYER_JOINED,
+                                  (java.io.Serializable) Integer.valueOf(playerId)));
 
         // Read loop
         while (conn.isAlive()) {
-            Message msg = conn.receive();
+            GameMessage msg = conn.receive();
             if (msg == null) break;
 
-            switch (msg.type) {
+            switch (msg.getType()) {
                 case HEARTBEAT -> {
-                    Heartbeat hb = (Heartbeat) msg;
-                    conn.send(new HeartbeatAck(hb.sentAt));
+                    conn.send(new GameMessage(MessageType.HEARTBEAT, null));
                     conn.touch();
                 }
-                // All other messages forwarded to the server core
-                default -> onMessageReceived.accept(msg);
+                // All other messages (LEAVE_REQUEST etc.) handled here
+                case LEAVE_REQUEST -> {
+                    LOG.info("Player " + playerId + " leaving gracefully");
+                    conn.send(new GameMessage(MessageType.LEAVE_RESPONSE, null));
+                    break;
+                }
+                default -> LOG.fine("Received " + msg.getType() + " from player " + playerId);
             }
         }
 
-        // Cleanup
         evictPlayer(playerId, "disconnected");
     }
 
-    // ──────────────────────────────────────────────────────────
-    // Heartbeat monitor
-    // ──────────────────────────────────────────────────────────
+    // ── Heartbeat monitor ──────────────────────────────────────
 
     private void heartbeatMonitorLoop() {
         while (running) {
-            try { Thread.sleep(GameConstants.HEARTBEAT_INTERVAL_MS); }
+            try { Thread.sleep(GameConstants.CLIENT_TIMEOUT_MS / 5); }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
 
             long now = System.currentTimeMillis();
             for (ClientConnection conn : clients.values()) {
                 long elapsed = now - conn.getLastSeenMs();
-                if (elapsed > GameConstants.HEARTBEAT_INTERVAL_MS) {
+                if (elapsed > GameConstants.CLIENT_TIMEOUT_MS / 5) {
                     conn.incrementMissedHeartbeats();
-                    if (conn.getMissedHeartbeats() >= GameConstants.MAX_MISSED_HEARTBEATS) {
-                        LOG.warning("Player " + conn.getPlayerId()
-                                    + " timed out after " + conn.getMissedHeartbeats()
-                                    + " missed heartbeats");
+                    if (conn.getMissedHeartbeats() >= 5) {
+                        LOG.warning("Player " + conn.getPlayerId() + " timed out");
                         evictPlayer(conn.getPlayerId(), "heartbeat timeout");
                     }
                 }
@@ -204,68 +181,48 @@ public class TCPServerHandler {
         }
     }
 
-    // ──────────────────────────────────────────────────────────
-    // Broadcasting
-    // ──────────────────────────────────────────────────────────
+    // ── Broadcasting ───────────────────────────────────────────
 
     /**
-     * Send a message to all connected clients.
-     * Called from the game loop thread — safe because ConcurrentHashMap
-     * iteration is weakly consistent and ClientConnection.send() is synchronized.
+     * Send a GameMessage to all connected clients.
+     * Called by GameLoop each tick via ServerNetworkManager.
      */
-    public void broadcast(Message message) {
-        broadcastRaw(message);
-    }
-
-    private void broadcastRaw(Message message) {
+    public void broadcast(GameMessage message) {
         clients.values().forEach(conn -> conn.send(message));
     }
 
-    /**
-     * Send a message to one specific player.
-     */
-    public void sendTo(int playerId, Message message) {
+    /** Send to one specific player. */
+    public void sendTo(int playerId, GameMessage message) {
         ClientConnection conn = clients.get(playerId);
         if (conn != null) conn.send(message);
     }
 
-    // ──────────────────────────────────────────────────────────
-    // KILL_SWITCH
-    // ──────────────────────────────────────────────────────────
+    // ── KILL_SWITCH ────────────────────────────────────────────
 
     /**
-     * Forcibly disconnect a client.
-     * Sends a KillClient notice first so the client can display an error,
-     * then closes the socket.
+     * Forcibly disconnect a misbehaving client.
+     * Integrates with Moses's KillSwitch class.
      */
     public void kill(int playerId, String reason) {
         ClientConnection conn = clients.get(playerId);
-        if (conn == null) {
-            LOG.warning("kill() called for unknown player " + playerId);
-            return;
-        }
-        LOG.info("KILL_SWITCH: evicting player " + playerId + " — reason: " + reason);
-        conn.send(new KillClient(playerId, reason));
+        if (conn == null) return;
+        LOG.info("KILL_SWITCH: evicting player " + playerId + " — " + reason);
+        conn.send(new GameMessage(MessageType.KICK, KickNotification.adminKick(reason)));
         evictPlayer(playerId, "killed: " + reason);
     }
 
     private void evictPlayer(int playerId, String reason) {
         ClientConnection conn = clients.remove(playerId);
-        if (conn == null) return; // already removed by another thread
-
+        if (conn == null) return;
         conn.close();
         onPlayerLeft.accept(playerId);
-        broadcast(new PlayerEvent(PlayerEvent.EventType.LEFT, playerId, reason));
+        broadcast(new GameMessage(MessageType.PLAYER_LEFT,
+                                  (java.io.Serializable) Integer.valueOf(playerId)));
         LOG.info("Player " + playerId + " evicted: " + reason);
     }
 
-    // ──────────────────────────────────────────────────────────
-    // Accessors
-    // ──────────────────────────────────────────────────────────
+    // ── Accessors ──────────────────────────────────────────────
 
-    public Set<Integer> getConnectedPlayerIds() {
-        return Collections.unmodifiableSet(clients.keySet());
-    }
-
-    public int getPlayerCount() { return clients.size(); }
+    public Set<Integer> getConnectedPlayerIds() { return Collections.unmodifiableSet(clients.keySet()); }
+    public int getPlayerCount()                 { return clients.size(); }
 }

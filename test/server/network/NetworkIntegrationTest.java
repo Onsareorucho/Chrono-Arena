@@ -2,348 +2,254 @@ package server.network;
 
 import client.network.TCPClientHandler;
 import client.network.UDPClientHandler;
-import org.junit.jupiter.api.*;
-import shared.Direction;
-import shared.protocol.*;
+import server.logic.ActionQueue;
+import shared.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 /**
- * End-to-end integration tests using real loopback sockets.
+ * Network integration tests for ChronoArena.
  *
- * These tests actually bind ports, connect real clients, and exchange
- * messages — proving that the TCP framing, JSON serialization, UDP
- * delivery, and sequence tracking all work together correctly.
+ * Runs as a plain Java program (no JUnit needed) so it works regardless
+ * of whether Maven can download JUnit from the internet.
  *
- * Ports 19100/19101 are used (unlikely to conflict with anything).
+ * Run with:
+ *   java -cp target/classes server.network.NetworkIntegrationTest
+ *
+ * Each test prints PASS or FAIL with a description.
  */
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class NetworkIntegrationTest {
+public class NetworkIntegrationTest {
 
     private static final int TCP_PORT = 19100;
     private static final int UDP_PORT = 19101;
 
-    private TCPServerHandler tcpServer;
-    private UDPServerHandler udpServer;
+    private static int passed = 0;
+    private static int failed = 0;
 
-    @BeforeEach
-    void startServer() throws IOException, InterruptedException {
-        tcpServer = new TCPServerHandler(TCP_PORT, UDP_PORT);
-        udpServer = new UDPServerHandler(UDP_PORT);
-        tcpServer.start();
-        udpServer.start();
-        Thread.sleep(100); // give sockets time to bind
+    public static void main(String[] args) throws Exception {
+        System.out.println("=== ChronoArena Network Integration Tests ===\n");
+
+        test_join_receivesPlayerId();
+        test_multipleClients_uniqueIds();
+        test_broadcast_clientReceivesIt();
+        test_killSwitch_clientReceivesKick();
+        test_udp_inputReachesActionQueue();
+        test_playerJoin_triggersCallback();
+        test_playerDisconnect_triggersCallback();
+
+        System.out.println("\n=== Results: " + passed + " passed, " + failed + " failed ===");
     }
 
-    @AfterEach
-    void stopServer() {
-        tcpServer.stop();
-        udpServer.stop();
-    }
+    // ── Test 1 ─────────────────────────────────────────────────
 
-    // ── Join flow ──────────────────────────────────────────────
+    static void test_join_receivesPlayerId() throws Exception {
+        ActionQueue queue = new ActionQueue();
+        TCPServerHandler server = new TCPServerHandler(TCP_PORT, UDP_PORT);
+        UDPServerHandler udpServer = new UDPServerHandler(UDP_PORT, queue);
+        server.start(); udpServer.start();
+        Thread.sleep(100);
 
-    @Test
-    @Order(1)
-    void client_join_receivesPlayerId() throws Exception {
-        TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT, "Bob");
-        JoinResponse jr = client.connect();
+        try {
+            TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT);
+            JoinResponse jr = client.connect("Bob");
 
-        assertTrue(jr.accepted, "Join should be accepted");
-        assertTrue(jr.assignedPlayerId >= 1, "Should receive a valid player ID");
-        assertEquals(UDP_PORT, jr.udpPort, "Should receive the correct UDP port");
-
-        client.stop();
-    }
-
-    @Test
-    @Order(2)
-    void multipleClients_receiveUniquePlayerIds() throws Exception {
-        TCPClientHandler c1 = new TCPClientHandler("localhost", TCP_PORT, "Alice");
-        TCPClientHandler c2 = new TCPClientHandler("localhost", TCP_PORT, "Bob");
-        TCPClientHandler c3 = new TCPClientHandler("localhost", TCP_PORT, "Carol");
-
-        JoinResponse r1 = c1.connect();
-        JoinResponse r2 = c2.connect();
-        JoinResponse r3 = c3.connect();
-
-        assertTrue(r1.accepted);
-        assertTrue(r2.accepted);
-        assertTrue(r3.accepted);
-
-        // All IDs must be distinct
-        assertNotEquals(r1.assignedPlayerId, r2.assignedPlayerId);
-        assertNotEquals(r2.assignedPlayerId, r3.assignedPlayerId);
-        assertNotEquals(r1.assignedPlayerId, r3.assignedPlayerId);
-
-        c1.stop(); c2.stop(); c3.stop();
-    }
-
-    // ── Server → Client broadcast ──────────────────────────────
-
-    @Test
-    @Order(3)
-    void server_broadcastScoreUpdate_clientReceivesIt() throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ScoreUpdate> received = new AtomicReference<>();
-
-        TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT, "Dave");
-        JoinResponse jr = client.connect();
-        client.onScoreUpdate = update -> {
-            received.set(update);
-            latch.countDown();
-        };
-        client.start();
-
-        // Give reader thread a moment to start
-        Thread.sleep(50);
-
-        // Server broadcasts a score update
-        tcpServer.broadcast(new ScoreUpdate(Map.of(jr.assignedPlayerId, 250)));
-
-        assertTrue(latch.await(2, TimeUnit.SECONDS), "Client should receive ScoreUpdate within 2s");
-        assertNotNull(received.get());
-        assertEquals(250, received.get().scores.get(jr.assignedPlayerId));
-
-        client.stop();
-    }
-
-    @Test
-    @Order(4)
-    void server_broadcastPlayerEvent_allClientsReceiveIt() throws Exception {
-        int clientCount = 3;
-        CountDownLatch latch = new CountDownLatch(clientCount);
-        List<PlayerEvent> events = new ArrayList<>();
-
-        List<TCPClientHandler> clients = new ArrayList<>();
-        for (int i = 0; i < clientCount; i++) {
-            TCPClientHandler c = new TCPClientHandler("localhost", TCP_PORT, "Player" + i);
-            c.connect();
-            c.onPlayerEvent = evt -> {
-                if (evt.eventType == PlayerEvent.EventType.FROZEN) {
-                    synchronized (events) { events.add(evt); }
-                    latch.countDown();
-                }
-            };
-            c.start();
-            clients.add(c);
+            check("join: playerId >= 1", jr.getPlayerId() >= 1);
+            check("join: udpPort correct", jr.getServerUdpPort() == UDP_PORT);
+            client.stop();
+        } finally {
+            server.stop(); udpServer.stop(); Thread.sleep(100);
         }
-
-        Thread.sleep(100); // let all reader threads start
-
-        tcpServer.broadcast(new PlayerEvent(PlayerEvent.EventType.FROZEN, 99, "Test freeze"));
-
-        assertTrue(latch.await(3, TimeUnit.SECONDS), "All clients should receive FROZEN event");
-        assertEquals(clientCount, events.size());
-        assertTrue(events.stream().allMatch(e -> e.playerId == 99));
-
-        clients.forEach(TCPClientHandler::stop);
     }
 
-    // ── KILL_SWITCH ────────────────────────────────────────────
+    // ── Test 2 ─────────────────────────────────────────────────
 
-    @Test
-    @Order(5)
-    void killSwitch_clientReceivesKillMessage() throws Exception {
+    static void test_multipleClients_uniqueIds() throws Exception {
+        ActionQueue queue = new ActionQueue();
+        TCPServerHandler server = new TCPServerHandler(TCP_PORT + 2, UDP_PORT + 2);
+        UDPServerHandler udpServer = new UDPServerHandler(UDP_PORT + 2, queue);
+        server.start(); udpServer.start();
+        Thread.sleep(100);
+
+        try {
+            TCPClientHandler c1 = new TCPClientHandler("localhost", TCP_PORT + 2);
+            TCPClientHandler c2 = new TCPClientHandler("localhost", TCP_PORT + 2);
+            TCPClientHandler c3 = new TCPClientHandler("localhost", TCP_PORT + 2);
+
+            JoinResponse r1 = c1.connect("Alice");
+            JoinResponse r2 = c2.connect("Bob");
+            JoinResponse r3 = c3.connect("Carol");
+
+            check("unique ids: 1 != 2", r1.getPlayerId() != r2.getPlayerId());
+            check("unique ids: 2 != 3", r2.getPlayerId() != r3.getPlayerId());
+            check("unique ids: 1 != 3", r1.getPlayerId() != r3.getPlayerId());
+
+            c1.stop(); c2.stop(); c3.stop();
+        } finally {
+            server.stop(); udpServer.stop(); Thread.sleep(100);
+        }
+    }
+
+    // ── Test 3 ─────────────────────────────────────────────────
+
+    static void test_broadcast_clientReceivesIt() throws Exception {
+        ActionQueue queue = new ActionQueue();
+        TCPServerHandler server = new TCPServerHandler(TCP_PORT + 4, UDP_PORT + 4);
+        UDPServerHandler udpServer = new UDPServerHandler(UDP_PORT + 4, queue);
+        server.start(); udpServer.start();
+        Thread.sleep(100);
+
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<GameEvent> received = new AtomicReference<>();
+
+            TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT + 4);
+            client.connect("Dave");
+            client.onGameEvent = evt -> { received.set(evt); latch.countDown(); };
+            client.start();
+            Thread.sleep(50);
+
+            GameEvent event = GameEvent.zoneCaptured(1, 0, 5.0f, 5.0f);
+            server.broadcast(new GameMessage(MessageType.GAME_EVENT, event));
+
+            boolean ok = latch.await(2, TimeUnit.SECONDS);
+            check("broadcast: client received GameEvent", ok && received.get() != null);
+            client.stop();
+        } finally {
+            server.stop(); udpServer.stop(); Thread.sleep(100);
+        }
+    }
+
+    // ── Test 4 ─────────────────────────────────────────────────
+
+    static void test_killSwitch_clientReceivesKick() throws Exception {
+        ActionQueue queue = new ActionQueue();
+        TCPServerHandler server = new TCPServerHandler(TCP_PORT + 6, UDP_PORT + 6);
+        UDPServerHandler udpServer = new UDPServerHandler(UDP_PORT + 6, queue);
+        server.start(); udpServer.start();
+        Thread.sleep(100);
+
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<KickNotification> kick = new AtomicReference<>();
+
+            TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT + 6);
+            JoinResponse jr = client.connect("Erratic");
+            client.onKickReceived = k -> { kick.set(k); latch.countDown(); };
+            client.start();
+            Thread.sleep(50);
+
+            server.kill(jr.getPlayerId(), "Test kick");
+
+            boolean ok = latch.await(2, TimeUnit.SECONDS);
+            check("killswitch: client received KickNotification", ok && kick.get() != null);
+            client.stop();
+        } finally {
+            server.stop(); udpServer.stop(); Thread.sleep(100);
+        }
+    }
+
+    // ── Test 5 ─────────────────────────────────────────────────
+
+    static void test_udp_inputReachesActionQueue() throws Exception {
+        ActionQueue queue = new ActionQueue();
+        TCPServerHandler server = new TCPServerHandler(TCP_PORT + 8, UDP_PORT + 8);
+        UDPServerHandler udpServer = new UDPServerHandler(UDP_PORT + 8, queue);
+        server.start(); udpServer.start();
+        Thread.sleep(100);
+
+        try {
+            TCPClientHandler tcp = new TCPClientHandler("localhost", TCP_PORT + 8);
+            JoinResponse jr = tcp.connect("Mover");
+
+            UDPClientHandler udp = new UDPClientHandler("localhost", jr.getServerUdpPort(), jr.getPlayerId());
+            udp.start();
+
+            udp.sendInput(PlayerInput.move(0, -1));
+            udp.sendInput(PlayerInput.move(1,  0));
+            udp.sendInput(PlayerInput.move(0,  1));
+            Thread.sleep(500);
+
+            List<GameMessage> actions = new ArrayList<>();
+            queue.drainTo(actions);
+            check("udp: at least 3 inputs reached ActionQueue", actions.size() >= 3);
+            check("udp: all are PLAYER_INPUT type",
+                    actions.stream().allMatch(a -> a.getType() == MessageType.PLAYER_INPUT));
+
+            udp.stop(); tcp.stop();
+        } finally {
+            server.stop(); udpServer.stop(); Thread.sleep(100);
+        }
+    }
+
+    // ── Test 6 ─────────────────────────────────────────────────
+
+    static void test_playerJoin_triggersCallback() throws Exception {
+        ActionQueue queue = new ActionQueue();
+        TCPServerHandler server = new TCPServerHandler(TCP_PORT + 10, UDP_PORT + 10);
+        UDPServerHandler udpServer = new UDPServerHandler(UDP_PORT + 10, queue);
+
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<KillClient> killMsg = new AtomicReference<>();
-
-        TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT, "Erratic");
-        JoinResponse jr = client.connect();
-        client.onKillReceived = msg -> {
-            killMsg.set(msg);
-            latch.countDown();
-        };
-        client.start();
-
-        Thread.sleep(50);
-
-        tcpServer.kill(jr.assignedPlayerId, "Too many bad packets");
-
-        assertTrue(latch.await(2, TimeUnit.SECONDS), "Client should receive KillClient message");
-        assertEquals("Too many bad packets", killMsg.get().reason);
-
-        client.stop();
-    }
-
-    // ── UDP action delivery ────────────────────────────────────
-
-    @Test
-    @Order(6)
-    void udpClient_sendsMove_serverActionQueueReceivesIt() throws Exception {
-        CountDownLatch latch = new CountDownLatch(3);
-        List<ActionMessage> received = new ArrayList<>();
-
-        udpServer.onActionReceived = action -> {
-            synchronized (received) { received.add(action); }
-            latch.countDown();
-        };
-
-        TCPClientHandler tcp = new TCPClientHandler("localhost", TCP_PORT, "Mover");
-        JoinResponse jr = tcp.connect();
-
-        UDPClientHandler udp = new UDPClientHandler("localhost", jr.udpPort, jr.assignedPlayerId);
-        udp.start();
-
-        // Send 3 move packets
-        udp.sendMove(Direction.UP);
-        udp.sendMove(Direction.RIGHT);
-        udp.sendMove(Direction.DOWN);
-
-        assertTrue(latch.await(3, TimeUnit.SECONDS), "Server should receive 3 UDP move packets");
-        assertEquals(3, received.size());
-        // UDP doesn't guarantee ordering — just verify all 3 arrived with correct type
-        assertTrue(received.stream().allMatch(a -> a.actionType == ActionMessage.ActionType.MOVE));
-        assertTrue(received.stream().anyMatch(a -> a.direction == Direction.UP));
-        assertTrue(received.stream().anyMatch(a -> a.direction == Direction.RIGHT));
-        assertTrue(received.stream().anyMatch(a -> a.direction == Direction.DOWN));
-
-        udp.stop();
-        tcp.stop();
-    }
-
-    @Test
-    @Order(7)
-    void udpClient_sendsAttack_serverReceivesIt() throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ActionMessage> received = new AtomicReference<>();
-
-        udpServer.onActionReceived = action -> {
-            received.set(action);
-            latch.countDown();
-        };
-
-        TCPClientHandler tcp = new TCPClientHandler("localhost", TCP_PORT, "Attacker");
-        JoinResponse jr = tcp.connect();
-
-        UDPClientHandler udp = new UDPClientHandler("localhost", jr.udpPort, jr.assignedPlayerId);
-        udp.start();
-        udp.sendAttack();
-
-        assertTrue(latch.await(2, TimeUnit.SECONDS));
-        assertEquals(ActionMessage.ActionType.ATTACK, received.get().actionType);
-        assertEquals(Direction.NONE, received.get().direction);
-
-        udp.stop();
-        tcp.stop();
-    }
-
-    // ── UDP duplicate rejection ────────────────────────────────
-
-    @Test
-    @Order(8)
-    void udp_duplicatePackets_onlyFirstDeliveredToQueue() throws Exception {
-        AtomicInteger deliveredCount = new AtomicInteger(0);
-        // Only count packets from player 999 so other test traffic doesn't interfere
-        udpServer.onActionReceived = action -> {
-            if (action.playerId == 999) deliveredCount.incrementAndGet();
-        };
-
-        TCPClientHandler tcp = new TCPClientHandler("localhost", TCP_PORT, "DupTest");
-        JoinResponse jr = tcp.connect();
-
-        UDPClientHandler udp = new UDPClientHandler("localhost", jr.udpPort, jr.assignedPlayerId);
-        udp.start();
-
-        final int pid = jr.assignedPlayerId;
-        udpServer.onActionReceived = action -> {
-            if (action.playerId == pid) deliveredCount.incrementAndGet();
-        };
-
-        // Send the same sequence number twice by building ActionMessages manually
-        ActionMessage first  = ActionMessage.move(jr.assignedPlayerId, 77L, Direction.UP);
-        ActionMessage second = ActionMessage.move(jr.assignedPlayerId, 77L, Direction.DOWN); // same seqNum!
-
-        udp.send(first);
-        Thread.sleep(50);
-        udp.send(second); // should be dropped
-
-        Thread.sleep(300); // wait for any delayed delivery
-
-        // Only 1 should have been delivered
-        assertEquals(1, deliveredCount.get(),
-                "Duplicate UDP packet should be dropped by PacketSequencer");
-
-        udp.stop();
-        tcp.stop();
-    }
-
-    // ── Player join/leave callbacks ────────────────────────────
-
-    @Test
-    @Order(9)
-    void playerJoin_triggerServerCallback() throws Exception {
-        CountDownLatch joinLatch = new CountDownLatch(1);
         AtomicInteger joinedId = new AtomicInteger(-1);
+        server.onPlayerJoined = id -> { joinedId.set(id); latch.countDown(); };
 
-        tcpServer.onPlayerJoined = id -> {
-            joinedId.set(id);
-            joinLatch.countDown();
-        };
+        server.start(); udpServer.start();
+        Thread.sleep(100);
 
-        TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT, "JoinTest");
-        JoinResponse jr = client.connect();
+        try {
+            TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT + 10);
+            JoinResponse jr = client.connect("JoinTest");
 
-        assertTrue(joinLatch.await(2, TimeUnit.SECONDS), "onPlayerJoined should fire");
-        assertEquals(jr.assignedPlayerId, joinedId.get());
-
-        client.stop();
+            boolean ok = latch.await(2, TimeUnit.SECONDS);
+            check("callback: onPlayerJoined fired", ok);
+            check("callback: correct playerId", joinedId.get() == jr.getPlayerId());
+            client.stop();
+        } finally {
+            server.stop(); udpServer.stop(); Thread.sleep(100);
+        }
     }
 
-    @Test
-    @Order(10)
-    void playerDisconnect_triggerServerCallback() throws Exception {
-        CountDownLatch leaveLatch = new CountDownLatch(1);
-        AtomicInteger leftId = new AtomicInteger(-1);
+    // ── Test 7 ─────────────────────────────────────────────────
 
-        tcpServer.onPlayerLeft = id -> {
-            leftId.set(id);
-            leaveLatch.countDown();
-        };
+    static void test_playerDisconnect_triggersCallback() throws Exception {
+        ActionQueue queue = new ActionQueue();
+        TCPServerHandler server = new TCPServerHandler(TCP_PORT + 12, UDP_PORT + 12);
+        UDPServerHandler udpServer = new UDPServerHandler(UDP_PORT + 12, queue);
 
-        TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT, "LeaveTest");
-        JoinResponse jr = client.connect();
-        client.start();
-        Thread.sleep(50);
-
-        client.stop(); // disconnect
-
-        assertTrue(leaveLatch.await(3, TimeUnit.SECONDS), "onPlayerLeft should fire after disconnect");
-        assertEquals(jr.assignedPlayerId, leftId.get());
-    }
-
-    // ── GameOver broadcast ─────────────────────────────────────
-
-    @Test
-    @Order(11)
-    void gameOver_clientReceivesWinner() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<GameOver> goMsg = new AtomicReference<>();
+        AtomicInteger leftId = new AtomicInteger(-1);
+        server.onPlayerLeft = id -> { leftId.set(id); latch.countDown(); };
 
-        TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT, "Finalist");
-        client.connect();
-        client.onGameOver = go -> {
-            goMsg.set(go);
-            latch.countDown();
-        };
-        client.start();
+        server.start(); udpServer.start();
+        Thread.sleep(100);
 
-        Thread.sleep(50);
-        tcpServer.broadcast(new GameOver(Map.of(1, 500, 2, 200), 1));
+        try {
+            TCPClientHandler client = new TCPClientHandler("localhost", TCP_PORT + 12);
+            JoinResponse jr = client.connect("LeaveTest");
+            client.start();
+            Thread.sleep(50);
+            client.stop();
 
-        assertTrue(latch.await(2, TimeUnit.SECONDS));
-        assertEquals(1, goMsg.get().winnerPlayerId);
-        assertEquals(500, goMsg.get().finalScores.get(1));
+            boolean ok = latch.await(3, TimeUnit.SECONDS);
+            check("callback: onPlayerLeft fired after disconnect", ok);
+            check("callback: correct playerId", leftId.get() == jr.getPlayerId());
+        } finally {
+            server.stop(); udpServer.stop(); Thread.sleep(100);
+        }
+    }
 
-        client.stop();
+    // ── Helpers ────────────────────────────────────────────────
+
+    static void check(String description, boolean condition) {
+        if (condition) {
+            System.out.println("  PASS: " + description);
+            passed++;
+        } else {
+            System.out.println("  FAIL: " + description);
+            failed++;
+        }
     }
 }

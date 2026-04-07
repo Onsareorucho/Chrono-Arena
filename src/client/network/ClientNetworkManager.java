@@ -1,155 +1,117 @@
 package client.network;
 
-import server.util.ConfigLoader;
-import shared.Direction;
-import shared.protocol.*;
+import shared.*;
 
 import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 /**
- * ClientNetworkManager is the single entry point for all networking on the client side.
+ * ClientNetworkManager — single entry point for all networking on the client side.
  *
- * Person 3 (GUI) only needs to interact with this class.
- * It owns both TCPClientHandler and UDPClientHandler and wires them together.
+ * Person 3 (Tyler/GUI) only needs this class.
  *
- * Typical usage in GameClient.java:
- * ─────────────────────────────────────────────────────────────────────────────
- *   ConfigLoader config = new ConfigLoader("game.properties");
- *
+ * Usage in GameClient.java:
+ *   GameConfig config = new GameConfig();
  *   ClientNetworkManager net = new ClientNetworkManager(config, "Alice");
  *
- *   // Wire GUI callbacks
- *   net.onGameStateUpdate = gameScreen::updateState;
- *   net.onScoreUpdate     = gameScreen::updateScores;
- *   net.onPlayerEvent     = gameScreen::handlePlayerEvent;
- *   net.onGameOver        = gameScreen::showGameOver;
- *   net.onKillReceived    = msg -> showDialog("Kicked: " + msg.reason);
- *   net.onDisconnected    = () -> showDialog("Lost connection to server");
+ *   net.onGameStateUpdate = screen::updateState;
+ *   net.onGameEvent       = screen::handleEvent;
+ *   net.onGameOver        = screen::showResults;
+ *   net.onPlayerJoined    = screen::addPlayer;
+ *   net.onPlayerLeft      = screen::removePlayer;
+ *   net.onKickReceived    = k -> screen.showError(k.getReason());
+ *   net.onDisconnected    = () -> screen.showError("Lost connection");
  *
- *   // Connect (blocks briefly for JoinResponse)
- *   net.connect(); // throws IOException if server unreachable or join rejected
- *
- *   // Start background threads
+ *   net.connect();   // blocks briefly for JoinResponse
  *   net.start();
  *
  *   // From InputHandler:
- *   net.sendMove(Direction.UP);
- *   net.sendAttack();
+ *   net.sendInput(PlayerInput.move(1, 0));
+ *   net.sendAction(PlayerAction.freezeRay(1, 0));
  *
- *   // On exit:
  *   net.stop();
- * ─────────────────────────────────────────────────────────────────────────────
- *
- * Thread safety:
- *   sendMove / sendAttack may be called from the Swing EDT.
- *   All callbacks are invoked on background reader threads.
- *   GUI callbacks must use SwingUtilities.invokeLater if they touch Swing components.
  */
 public class ClientNetworkManager {
 
     private static final Logger LOG = Logger.getLogger(ClientNetworkManager.class.getName());
 
-    private final TCPClientHandler tcp;
-    private       UDPClientHandler udp; // created after connect() gives us udpPort
+    private final GameConfig config;
+    private final String playerName;
 
-    private final String serverIp;
-    private final ConfigLoader config;
+    private TCPClientHandler tcp;
+    private UDPClientHandler udp;
 
     private int playerId = -1;
 
-    // ── GUI callbacks (set before calling connect()) ───────────
+    // ── GUI callbacks ──────────────────────────────────────────
 
-    public Consumer<GameStateUpdate> onGameStateUpdate = u -> {};
-    public Consumer<ScoreUpdate>     onScoreUpdate     = u -> {};
-    public Consumer<PlayerEvent>     onPlayerEvent     = e -> {};
-    public Consumer<GameOver>        onGameOver        = g -> {};
-    public Consumer<KillClient>      onKillReceived    = k -> {};
-    public Runnable                  onDisconnected    = () -> {};
+    public Consumer<GameStateUpdate>  onGameStateUpdate = u -> {};
+    public Consumer<GameEvent>        onGameEvent       = e -> {};
+    public Consumer<GameResult>       onGameOver        = r -> {};
+    public Consumer<KickNotification> onKickReceived    = k -> {};
+    public Consumer<Integer>          onPlayerJoined    = id -> {};
+    public Consumer<Integer>          onPlayerLeft      = id -> {};
+    public Runnable                   onDisconnected    = () -> {};
 
     // ──────────────────────────────────────────────────────────
-    // Constructor
-    // ──────────────────────────────────────────────────────────
 
-    public ClientNetworkManager(ConfigLoader config, String playerName) {
-        this.config   = config;
-        this.serverIp = config.getServerIp();
-        this.tcp      = new TCPClientHandler(serverIp, config.getTcpPort(), playerName);
+    public ClientNetworkManager(GameConfig config, String playerName) {
+        this.config     = config;
+        this.playerName = playerName;
     }
 
-    // ──────────────────────────────────────────────────────────
-    // Lifecycle
-    // ──────────────────────────────────────────────────────────
+    // ── Lifecycle ──────────────────────────────────────────────
 
     /**
-     * Connect to the server and complete the join handshake.
-     * Blocks until a JoinResponse is received.
-     *
-     * @throws IOException if the TCP connection fails
-     * @throws IllegalStateException if the server rejects the join
+     * Connect to server and complete join handshake.
+     * Blocks briefly until JoinResponse is received.
      */
     public void connect() throws IOException {
-        JoinResponse jr = tcp.connect();
-        if (!jr.accepted) {
-            throw new IllegalStateException("Server rejected join: " + jr.rejectReason);
-        }
-        playerId = jr.assignedPlayerId;
-        LOG.info("Joined as playerId=" + playerId);
+        tcp = new TCPClientHandler(config.getServerIp(), config.getServerTcpPort());
 
-        // Now we know the UDP port
-        udp = new UDPClientHandler(serverIp, jr.udpPort, playerId);
-    }
-
-    /**
-     * Start background reader and heartbeat threads.
-     * Call after connect() succeeds.
-     *
-     * @throws IOException if the UDP socket cannot be created
-     */
-    public void start() throws IOException {
-        if (udp == null) throw new IllegalStateException("Call connect() before start()");
-
-        // Wire TCP callbacks to our public fields
-        tcp.onGameStateUpdate = msg -> onGameStateUpdate.accept(msg);
-        tcp.onScoreUpdate     = msg -> onScoreUpdate.accept(msg);
-        tcp.onPlayerEvent     = msg -> onPlayerEvent.accept(msg);
-        tcp.onGameOver        = msg -> onGameOver.accept(msg);
-        tcp.onKillReceived    = msg -> onKillReceived.accept(msg);
+        // Wire TCP callbacks
+        tcp.onGameStateUpdate = u  -> onGameStateUpdate.accept(u);
+        tcp.onGameEvent       = e  -> onGameEvent.accept(e);
+        tcp.onGameOver        = r  -> onGameOver.accept(r);
+        tcp.onKickReceived    = k  -> onKickReceived.accept(k);
+        tcp.onPlayerJoined    = id -> onPlayerJoined.accept(id);
+        tcp.onPlayerLeft      = id -> onPlayerLeft.accept(id);
         tcp.onDisconnected    = () -> onDisconnected.run();
 
+        JoinResponse jr = tcp.connect(playerName);
+        playerId = jr.getPlayerId();
+
+        // Create UDP handler now that we know the server's UDP port
+        udp = new UDPClientHandler(config.getServerIp(), jr.getServerUdpPort(), playerId);
+    }
+
+    /** Start background threads. Call after connect(). */
+    public void start() throws IOException {
+        if (udp == null) throw new IllegalStateException("Call connect() first");
         tcp.start();
         udp.start();
     }
 
     public void stop() {
-        tcp.stop();
+        if (tcp != null) tcp.stop();
         if (udp != null) udp.stop();
     }
 
-    // ──────────────────────────────────────────────────────────
-    // Input sending (called from InputHandler)
-    // ──────────────────────────────────────────────────────────
+    // ── Input sending — called from InputHandler ───────────────
 
-    /** Send a movement input to the server via UDP. */
-    public void sendMove(Direction direction) {
-        if (udp != null) udp.sendMove(direction);
+    /** Send movement input via UDP. */
+    public void sendInput(PlayerInput input) {
+        if (udp != null) udp.sendInput(input);
     }
 
-    /** Fire the freeze-ray via UDP. */
-    public void sendAttack() {
-        if (udp != null) udp.sendAttack();
+    /** Send action (freeze ray, powerup) via UDP. */
+    public void sendAction(PlayerAction action) {
+        if (udp != null) udp.sendAction(action);
     }
 
-    /** Activate a held power-up via UDP. */
-    public void sendUseAbility() {
-        if (udp != null) udp.sendUseAbility();
-    }
+    // ── Accessors ──────────────────────────────────────────────
 
-    // ──────────────────────────────────────────────────────────
-    // Accessors
-    // ──────────────────────────────────────────────────────────
-
-    public int getPlayerId()  { return playerId; }
-    public boolean isAlive()  { return tcp.isRunning(); }
+    public int getPlayerId() { return playerId; }
+    public boolean isAlive() { return tcp != null && tcp.isRunning(); }
 }
