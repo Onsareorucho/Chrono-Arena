@@ -14,3 +14,7 @@ target/
 # OS
 .DS_Store
 Thumbs.db
+
+.agents
+.claude/
+skills-lock.json

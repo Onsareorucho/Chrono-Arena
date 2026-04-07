@@ -51,8 +51,11 @@ public final class GameConstants {
 
     // Freeze ray weapon
     
-    // Range of freeze ray attack (in game units)
+    // Range of freeze ray attack (in game units, float for physics)
     public static final float FREEZE_RAY_RANGE = 3.0f;
+
+    // Range of freeze ray attack (in tiles, used by server tile-based collision)
+    public static final int FREEZE_RAY_RANGE_TILES = 2;
     
     // Cooldown between freeze ray uses (in milliseconds)
     public static final long FREEZE_RAY_COOLDOWN_MS = 8000;
