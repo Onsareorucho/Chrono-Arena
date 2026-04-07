@@ -23,26 +23,38 @@ public class InputHandler implements KeyListener {
         switch(key) {
             case KeyEvent.VK_W:
             case KeyEvent.VK_UP:
-                upPressed = true;
-                client.sendAction("MOVE", "UP");
+                if(!upPressed) {
+                    upPressed = true;
+                    sendMovementUpdate();
+                }
                 break;
 
             case KeyEvent.VK_S:
             case KeyEvent.VK_DOWN:
-                downPressed = true;
-                client.sendAction("MOVE", "DOWN");
+                if(!downPressed) {
+                    downPressed = true;
+                    sendMovementUpdate();
+                }
                 break;
 
             case KeyEvent.VK_A:
             case KeyEvent.VK_LEFT:
-                leftPressed = true;
-                client.sendAction("MOVE", "LEFT");
+                if(!leftPressed) {
+                    leftPressed = true;
+                    sendMovementUpdate();
+                }
                 break;
 
             case KeyEvent.VK_D:
             case KeyEvent.VK_RIGHT:
-                rightPressed = true;
-                client.sendAction("MOVE", "RIGHT");
+                if(!rightPressed) {
+                    rightPressed = true;
+                    sendMovementUpdate();
+                }
+                break;
+
+            case KeyEvent.VK_SPACE:
+                client.sendAction("FREEZE_RAY", getLastDirection());
                 break;
 
             case KeyEvent.VK_E:
@@ -58,22 +70,26 @@ public class InputHandler implements KeyListener {
         switch(key) {
             case KeyEvent.VK_W:
             case KeyEvent.VK_UP:
-                upPressed = true;
+                upPressed = false;
+                sendMovementUpdate();
                 break;
 
             case KeyEvent.VK_S:
             case KeyEvent.VK_DOWN:
-                downPressed = true;
+                downPressed = false;
+                sendMovementUpdate();
                 break;
 
             case KeyEvent.VK_A:
             case KeyEvent.VK_LEFT:
-                leftPressed = true;
+                leftPressed = false;
+                sendMovementUpdate();
                 break;
 
             case KeyEvent.VK_D:
             case KeyEvent.VK_RIGHT:
-                rightPressed = true;
+                rightPressed = false;
+                sendMovementUpdate();
                 break;
         }
     }
@@ -83,8 +99,44 @@ public class InputHandler implements KeyListener {
         // not used
     }
 
+    private void sendMovementUpdate() {
+        int dx = 0;
+        int dy = 0;
+
+        if (leftPressed) dx -= 1;
+        if (rightPressed) dx += 1;
+        if (upPressed) dy -= 1;
+        if (downPressed) dy += 1;
+
+        client.sendMovement(dx, dy);
+    }
+
+    private String getLastDirection() {
+        
+        if (leftPressed) return "LEFT";
+        if (rightPressed) return "RIGHT";
+        if (upPressed) return "UP";
+        if (downPressed) return "DOWN";
+
+        return "RIGHT";
+    }
+
     public boolean isUpPressed() { return upPressed; }
     public boolean isDownPressed() { return downPressed; }
     public boolean isLeftPressed() { return leftPressed; }
     public boolean isRightPressed() { return rightPressed; }
+
+    public int getDirectionX() {
+        int dx = 0;
+        if (leftPressed) dx -= 1;
+        if (rightPressed) dx += 1;
+        return dx;
+    }
+
+    public int getDirectionY() {
+        int dy = 0;
+        if (upPressed) dy += 1;
+        if (downPressed) dy -= 1;
+        return dy;
+    }
 }

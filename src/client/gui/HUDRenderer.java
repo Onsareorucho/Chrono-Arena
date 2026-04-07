@@ -9,26 +9,51 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 
-import client.mock.MockGameState;
-import client.mock.Player;
+import shared.GameStateUpdate;
+import shared.GameStateUpdate.PlayerSnapshot;
 
 public class HUDRenderer {
 
     private SpriteManager spriteManager;
 
+    private int localPlayerId = 1;
+
     public HUDRenderer(SpriteManager spriteManager) {
         this.spriteManager = spriteManager;
     }
 
-    public void render(Graphics2D g2d, MockGameState gameState, int screenWidth, int screenHeight) {
-        drawTimer(g2d, gameState.timeRemainingSeconds, screenWidth);
+    public void setLocalPlayerId(int playerId) {
+        this.localPlayerId = playerId;
+    }
+
+    public void render(Graphics2D g2d, GameStateUpdate gameState, int screenWidth, int screenHeight) {
+        
+        if (gameState == null) {
+            drawWaitingScreen(g2d, screenWidth, screenHeight);
+            return;
+        }
+
+        drawTimer(g2d, gameState.getTimeRemainingMs(), screenWidth);
         drawScoreboard(g2d, gameState, screenWidth);
         drawLocalPlayerHUD(g2d, gameState, screenWidth);
         drawControlHints(g2d, screenHeight);
-        drawCooldownIndicator(g2d, screenWidth, screenHeight);
+        drawCooldownIndicator(g2d, gameState, screenWidth, screenHeight);
     }
 
-    private void drawTimer(Graphics2D g2d, int seconds, int screenWidth) {
+    private void drawWaitingScreen(Graphics2D g2d, int screenWidth, int screenHeight) {
+        g2d.setColor(new Color(0, 0, 0, 180));
+        g2d.fillRoundRect(screenWidth/2 - 150, screenHeight/2 - 30, 300, 60, 10, 10);
+    
+        g2d.setFont(new Font("Arial", Font.BOLD, 24));
+        g2d.setColor(Color.WHITE);
+        String msg = "Waiting for game state...";
+        FontMetrics fm = g2d.getFontMetrics();
+        int x = (screenWidth - fm.stringWidth(msg)) / 2;
+        g2d.drawString(msg, x, screenHeight/2 + 8);
+    }
+
+    private void drawTimer(Graphics2D g2d, long timeMs, int screenWidth) {
+        int seconds = (int) (timeMs / 1000);
         int minutes = seconds / 60;
         int secs = seconds % 60;
         String timeStr = String.format("TIME LEFT: %02d:%02d", minutes, secs);
@@ -44,20 +69,23 @@ public class HUDRenderer {
         g2d.drawString(timeStr, x, 38);
     }
 
-    private void drawScoreboard(Graphics2D g2d, MockGameState state, int screenWidth) { 
+    private void drawScoreboard(Graphics2D g2d, GameStateUpdate state, int screenWidth) { 
+        List<PlayerSnapshot> players = state.getPlayers();
+        
         g2d.setColor(new Color( 0, 0, 0, 180));
-        g2d.fillRoundRect(screenWidth - 145, 10, 135, 30 + (state.players.size() *25), 10, 10);
+        g2d.fillRoundRect(screenWidth - 145, 10, 135, 30 + (players.size() *25), 10, 10);
+        g2d.setFont(new Font("Arial", Font.BOLD, 16));
         g2d.setColor(Color.WHITE);
-        g2d.drawString("SCORES", screenWidth - 132, 32);
+        g2d.drawString("SCORES", screenWidth - 130, 32);
 
-        List<Player> sorted = new ArrayList<>(state.players);
+        List<PlayerSnapshot> sorted = new ArrayList<>(players);
         sorted.sort((a,b) -> b.score - a.score);
 
         g2d.setFont(new Font("Arial", Font.PLAIN, 14));
         int yPos = 55;
 
-        for(Player player : sorted) {
-            Color playerColor = spriteManager.getPlayerColor(player.id - 1);
+        for(PlayerSnapshot player : sorted) {
+            Color playerColor = spriteManager.getPlayerColor(player.playerId - 1);
             g2d.setColor(playerColor);
             g2d.fillOval(screenWidth - 138, yPos - 10, 12, 12);
 
@@ -67,10 +95,10 @@ public class HUDRenderer {
         }
     }
 
-    private void drawLocalPlayerHUD(Graphics2D g2d, MockGameState gameState, int screenWidth) {
-        Player localPlayer = null;
-        for (Player p : gameState.players) {
-            if (p.id == 1) {
+    private void drawLocalPlayerHUD(Graphics2D g2d, GameStateUpdate gameState, int screenWidth) {
+        PlayerSnapshot localPlayer = null;
+        for (PlayerSnapshot p : gameState.getPlayers()) {
+            if (p.playerId == localPlayerId) {
                 localPlayer = p;
                 break;
             }
@@ -84,26 +112,31 @@ public class HUDRenderer {
         g2d.setColor(Color.WHITE);
         g2d.drawString(localPlayer.name, 20, 32);
 
+        g2d.setFont(new Font("Arial", Font.PLAIN, 14));
+        g2d.drawString("Score: " + localPlayer.score, 20, 52);
+
         g2d.setFont(new Font("Arial", Font.PLAIN, 12));
-        g2d.drawString("HP:", 20, 52);
+        int statusY = 72;
 
-        int barX = 50;
-        int barY = 42;
-        int barWidth = 100;
-        int barHeight = 14;
+        if (localPlayer.isFrozen) {
+            g2d.setColor(Color.CYAN);
+            g2d.drawString("FROZEN!", 20, statusY);
+            statusY += 16;
+        }
+ 
+        if (localPlayer.hasSpeedBoost) {
+            g2d.setColor(Color.MAGENTA);
+            g2d.drawString("SPEED BOOST", 20, statusY);
+            statusY += 16;
+        }
 
-        g2d.setColor(Color.DARK_GRAY);
-        g2d.fillRect(barX, barY, barWidth, barHeight);
-
-        int hp = localPlayer.hp;
-        g2d.setColor(hp > 50 ? Color.GREEN : (hp > 25 ? Color.YELLOW : Color.RED));
-        int fillWidth = (int) ((hp/100.0) * barWidth);
-        g2d.fillRect(barX, barY, fillWidth, barHeight);
-
-        g2d.setColor(Color.WHITE);
-        g2d.drawRect(barX, barY, barWidth, barHeight);
-
-        g2d.drawString("Score: " + localPlayer.score, 20, 78);
+        if (localPlayer.hasFreezeRay) {
+            g2d.setColor(Color.BLUE);
+            g2d.drawString("FREEZE RAY READY", 20, statusY);
+        } else {
+            g2d.setColor(Color.GRAY);
+            g2d.drawString("No weapon", 20, statusY);
+        }
     }
 
     private void drawControlHints(Graphics2D g2d, int screenHeight) {
@@ -127,12 +160,20 @@ public class HUDRenderer {
         }
     }
 
-    private void drawCooldownIndicator(Graphics2D g2d, int screenWidth, int screenHeight) {
+    private void drawCooldownIndicator(Graphics2D g2d, GameStateUpdate gameState, int screenWidth, int screenHeight) {
         int size = 50;
         int x = screenWidth - 70;
         int y = screenHeight - 70; 
 
-        boolean isReady = true; // TODO: get from game state
+        PlayerSnapshot localPlayer = null;
+        for (PlayerSnapshot p : gameState.getPlayers()) {
+            if(p.playerId == localPlayerId){
+                localPlayer = p;
+                break;
+            }
+        }
+
+        boolean isReady = localPlayer != null && localPlayer.hasFreezeRay;
 
         String spriteName = isReady ? "cooldown_ready" : "cooldown_active";
 

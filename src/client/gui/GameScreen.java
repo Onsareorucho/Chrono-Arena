@@ -9,7 +9,7 @@ import java.awt.RenderingHints;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
-import client.mock.MockGameState;
+import shared.GameStateUpdate;
 
 public class GameScreen extends JPanel implements Runnable {
     
@@ -25,7 +25,7 @@ public class GameScreen extends JPanel implements Runnable {
     private HUDRenderer hudRenderer;
 
     // temporary: replace when game state is developed
-    private MockGameState gameState;
+    private GameStateUpdate gameState;
 
     public GameScreen() {
         setPreferredSize(new Dimension(BASE_WIDTH, BASE_HEIGHT));
@@ -38,8 +38,7 @@ public class GameScreen extends JPanel implements Runnable {
         arenaRenderer = new ArenaRenderer(spriteManager);
         hudRenderer = new HUDRenderer(spriteManager);
 
-        // temporary: replace when game state is developed
-        gameState = new MockGameState();
+        gameState = null;
     }
 
     public void startGame() {
@@ -72,10 +71,13 @@ public class GameScreen extends JPanel implements Runnable {
         // TODO: game state comes from network, no local update needed
     }
 
-    // TODO: called by gc when new state arrives from server
-    // public void updateState(GameState newState) {
-    //     this.gameState = new newState;
-    // }
+    public void updateState(GameStateUpdate newState) {
+        this.gameState = newState;
+    }
+
+    public void setLocalPlayerId(int playerId) {
+        hudRenderer.setLocalPlayerId(playerId);
+    }
 
     @Override
     protected void paintComponent(Graphics g) {

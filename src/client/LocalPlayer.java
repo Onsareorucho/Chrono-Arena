@@ -9,6 +9,7 @@ public class LocalPlayer {
     private int hp = 100;
     private boolean hasFreezeRay = false;
     private boolean isFrozen = false;
+    private boolean hasSpeedBoost = false;
 
     public LocalPlayer() {
 
@@ -41,12 +42,12 @@ public class LocalPlayer {
     public int getScore() { return score; }
     public void setScore(int score) { this.score = score; }
 
-    public int getHP() { return hp; }
-    public void setHP(int hp) { this.hp = hp; }
-
     public boolean hasFreezeRay() { return hasFreezeRay; }
     public void setHasFreezeRay(boolean has) { this.hasFreezeRay = has; }
 
     public boolean isFrozen() { return isFrozen; }
     public void setFrozen(boolean frozen) { this.isFrozen = frozen; }
+
+    public boolean hasSpeedBoost() { return hasSpeedBoost; }
+    public void setHasSpeedBoost(boolean has) { this.hasSpeedBoost = has; }
 }

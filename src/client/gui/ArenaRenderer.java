@@ -7,10 +7,10 @@ import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 
-import client.mock.Item;
-import client.mock.MockGameState;
-import client.mock.Player;
-import client.mock.Zone;
+import shared.GameStateUpdate;
+import shared.GameStateUpdate.ItemSnapshot;
+import shared.GameStateUpdate.PlayerSnapshot;
+import shared.GameStateUpdate.ZoneSnapshot;
 
 public class ArenaRenderer {
 
@@ -30,11 +30,13 @@ public class ArenaRenderer {
     }
 
     // TODO: replace gamestate with official gamestate
-    public void render(Graphics2D g2d, MockGameState gameState) {
+    public void render(Graphics2D g2d, GameStateUpdate gameState) {
         drawBackground(g2d, 800, 600);
-        drawZones(g2d, gameState);
-        drawItems(g2d, gameState);
-        drawPlayers(g2d, gameState);
+        if (gameState != null) {
+            drawZones(g2d, gameState);
+            drawItems(g2d, gameState);
+            drawPlayers(g2d, gameState);
+        }
     }
 
     private void drawBackground(Graphics2D g2d, int width, int height) {
@@ -44,47 +46,73 @@ public class ArenaRenderer {
         }
     }
 
-    private void drawZones(Graphics2D g2d, MockGameState state) {
-        for(Zone zone : state.zones) {
-            if (zone.isContested) {
+    private void drawZones(Graphics2D g2d, GameStateUpdate state) {
+        for(ZoneSnapshot zone : state.getZones()) {
+            
+            boolean isContested = zone.contestedById != -1;
+            
+            if (isContested) {
                 g2d.setColor(ZONE_CONTESTED);
-            } else if (zone.ownerID == -1) { 
+            } else if (zone.ownerId == -1) { 
                 g2d.setColor(ZONE_UNCLAIMED);
             } else {
                 g2d.setColor(ZONE_OWNED);
             }
 
-            g2d.fillRect(zone.x, zone.y, zone.width, zone.height);
+            int zoneX = (int) (zone.x - zone.radius);
+            int zoneY = (int) (zone.y - zone.radius);
+            int zoneWidth = (int) (zone.radius*2);
+            int zoneHeight = (int) (zone.radius*2);
+
+            g2d.fillRect(zoneX, zoneY, zoneWidth, zoneHeight);
 
             g2d.setColor(Color.WHITE);
             g2d.setStroke(new BasicStroke(2));
-            g2d.drawRect(zone.x, zone.y, zone.width, zone.height);
+            g2d.drawRect(zoneX, zoneY, zoneWidth, zoneHeight);
 
-            String label = zone.isContested ? "CONTESTED" : (zone.ownerID == -1 ? "UNCLAIMED" : "CONTROLLED");
+            String label = isContested ? "CONTESTED" : (zone.ownerId == -1 ? "UNCLAIMED" : "CONTROLLED");
             g2d.setFont(new Font("Arial", Font.BOLD, 12));
-            int labelX = zone.x + (zone.width/2)-30;
-            int labelY = zone.y - 5;
+            int labelX = zoneX + (zoneWidth/2)-30;
+            int labelY = zoneY - 5;
             g2d.drawString(label, labelX, labelY);
+
+            if (zone.captureProgress > 0 && zone.captureProgress < 1.0f) {
+                drawCaptureProgress(g2d, zoneX, zoneY + zoneHeight + 5, zoneWidth, zone.captureProgress);
+            }
         }
     }
 
-    private void drawItems(Graphics2D g2d, MockGameState state) {
+    private void drawCaptureProgress(Graphics2D g2d, int x, int y, int width, float progress) {
+        int barHeight = 6;
+
+        g2d.setColor(Color.DARK_GRAY);
+        g2d.fillRect(x, y, width, barHeight);
+
+        g2d.setColor(Color.ORANGE);
+        int fillWidth = (int) (progress * width);
+        g2d.fillRect(x, y, width, barHeight);
+
+        g2d.setColor(Color.WHITE);
+        g2d.drawRect(x, y, width, barHeight);
+    }
+
+    private void drawItems(Graphics2D g2d, GameStateUpdate state) {
         int itemSize = 48;
         
-        for(Item item : state.items) {
+        for(ItemSnapshot item : state.getItems()) {
             String spriteName = null;
             Color fallbackColor;
 
             switch (item.type) {
-                case "ENERGY":
+                case ENERGY:
                     spriteName = "item_energy";
                     fallbackColor = Color.YELLOW;
                     break;
-                case "FREEZE_RAY":
+                case FREEZE_RAY:
                     spriteName = "item_freeze_ray";
                     fallbackColor = Color.CYAN;
                     break;
-                case "SPEED":
+                case SPEED_BOOST:
                     spriteName = "item_speed";
                     fallbackColor = Color.MAGENTA;
                     break;
@@ -94,35 +122,29 @@ public class ArenaRenderer {
 
             if (spriteName != null && spriteManager.hasSprite(spriteName)) {
                 BufferedImage sprite = spriteManager.getSprite(spriteName);
-                g2d.drawImage(sprite, item.x - itemSize/2, item.y - itemSize/2, itemSize, itemSize, null);
+                g2d.drawImage(sprite, (int)item.x - itemSize/2, (int)item.y - itemSize/2, itemSize, itemSize, null);
             } else {
                 g2d.setColor(fallbackColor);
-                g2d.fillOval(item.x - itemSize/2, item.y - itemSize/2, itemSize, itemSize);
+                g2d.fillOval((int) item.x - itemSize/2, (int) item.y - itemSize/2, itemSize, itemSize);
                 g2d.setColor(Color.WHITE);
-                g2d.drawOval(item.x - itemSize/2, item.y -itemSize/2, itemSize, itemSize);
+                g2d.drawOval((int) item.x - itemSize/2, (int) item.y -itemSize/2, itemSize, itemSize);
             }
         }
     }
 
-    private void drawPlayers(Graphics2D g2d, MockGameState state) {
+    private void drawPlayers(Graphics2D g2d, GameStateUpdate state) {
         int playerSize = 80;
         long elasped = System.currentTimeMillis() - startTime;
 
-        for(Player player : state.players) {
+        for(PlayerSnapshot player : state.getPlayers()) {
             String animName;
             int frameSpeed;
 
             if (player.isFrozen) {
-                animName = "player_" + player.id + "_frozen";
+                animName = "player_" + player.playerId + "_frozen";
                 frameSpeed = 300;
-            } else if (player.isMovingRight) {
-                animName = "player_" + player.id + "_walk_right";
-                frameSpeed = 150;
-            } else if (player.isMovingLeft) {
-                animName = "player_" + player.id + "_walk_left";
-                frameSpeed = 150;
             } else {
-                animName = "player_" + player.id + "_idle";
+                animName = "player_" + player.playerId + "_idle";
                 frameSpeed = 400;
             }
 
@@ -134,11 +156,14 @@ public class ArenaRenderer {
                 frame = spriteManager.getSprite(animName);
             }
 
+            int playerX = (int) player.x;
+            int playerY = (int) player.y;
+
             if (frame != null) {
-                g2d.drawImage(frame, player.x - playerSize/2, player.y - playerSize/2, playerSize, playerSize, null);
+                g2d.drawImage(frame, (int) player.x - playerSize/2, (int) player.y - playerSize/2, playerSize, playerSize, null);
             } else {
-                g2d.setColor(spriteManager.getPlayerColor(player.id - 1));
-                g2d.fillOval(player.x - playerSize/2, player.y - playerSize/2, playerSize, playerSize);
+                g2d.setColor(spriteManager.getPlayerColor(player.playerId - 1));
+                g2d.fillOval((int) player.x - playerSize/2, (int) player.y - playerSize/2, playerSize, playerSize);
             }
 
             g2d.setColor(Color.WHITE);
@@ -147,24 +172,35 @@ public class ArenaRenderer {
             int nameWidth = fm.stringWidth(player.name);
             g2d.drawString(player.name, player.x - nameWidth/2, player.y - playerSize/2 - 8);
         
-            drawHealthBar(g2d, player.x, player.y + playerSize/2 + 5, player.hp);
+            drawPlayerStatus(g2d, playerX, playerY + playerSize/2 + 5, player);
         }
     }
 
-    public void drawHealthBar(Graphics2D g2d, int x, int y, int hp) {
-        int barWidth = 50;
-        int barHeight = 8;
+    public void drawPlayerStatus(Graphics2D g2d, int x, int y, PlayerSnapshot player) {
 
-        g2d.setColor(Color.DARK_GRAY);
-        g2d.fillRect(x - barWidth/2, y, barWidth, barHeight);
+        int indicatorSize = 12;
+        int spacing = 14;
+        int currentX = x - spacing;
 
-        Color hpColor = hp > 50 ? Color.GREEN : (hp > 25 ? Color.YELLOW : Color.RED);
-        int fillWidth = (int)((hp/100.0)*barWidth);
-        g2d.setColor(hpColor);
-        g2d.fillRect(x - barWidth/2, y, fillWidth, barHeight);
+        if (player.hasSpeedBoost) {
+            g2d.setColor(Color.MAGENTA);
+            g2d.setColor(Color.MAGENTA);
+            g2d.fillRect(currentX, y, indicatorSize, indicatorSize);
+            g2d.setColor(Color.WHITE);
+            g2d.drawRect(currentX, y, indicatorSize, indicatorSize);
+            g2d.setFont(new Font("Arial", Font.BOLD, 8));
+            g2d.drawString("S", currentX + 3, y + 10);
+            currentX += spacing;
+        }
 
-        g2d.setColor(Color.WHITE);
-        g2d.drawRect(x - barWidth/2, y, barWidth, barHeight);
+        if (player.hasFreezeRay) {
+            g2d.setColor(Color.BLUE);
+            g2d.fillRect(currentX, y, indicatorSize, indicatorSize);
+            g2d.setColor(Color.WHITE);
+            g2d.drawRect(currentX, y, indicatorSize, indicatorSize);
+            g2d.setFont(new Font("Arial", Font.BOLD, 8));
+            g2d.drawString("R", currentX + 3, y + 10);
+        }
     }
 
 }
