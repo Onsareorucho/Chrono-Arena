@@ -1,7 +1,9 @@
 package client.gui;
 
-import java.awt.Color; // TODO: replace with actual shared
+import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -9,6 +11,7 @@ import java.awt.RenderingHints;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
+import shared.GameConfig;
 import shared.GameStateUpdate;
 
 public class GameScreen extends JPanel implements Runnable {
@@ -24,8 +27,15 @@ public class GameScreen extends JPanel implements Runnable {
     private ArenaRenderer arenaRenderer;
     private HUDRenderer hudRenderer;
 
-    // temporary: replace when game state is developed
     private GameStateUpdate gameState;
+
+    private long gameStartTime;
+    private long gameDurationMs = 180000;
+
+    private String notificationText = null;
+    private Color notificationColor = Color.WHITE;
+    private long notificationEndTime = 0;
+    private static final long NOTIFICATION_DURATION_MS = 2000;
 
     public GameScreen() {
         setPreferredSize(new Dimension(BASE_WIDTH, BASE_HEIGHT));
@@ -39,6 +49,14 @@ public class GameScreen extends JPanel implements Runnable {
         hudRenderer = new HUDRenderer(spriteManager);
 
         gameState = null;
+        gameStartTime = System.currentTimeMillis();
+
+        try {
+            GameConfig config = new GameConfig();
+            gameDurationMs = config.getGameDurationSeconds() * 1000L;
+        } catch (Exception e) {
+
+        }
     }
 
     public void startGame() {
@@ -63,12 +81,20 @@ public class GameScreen extends JPanel implements Runnable {
 
             long elapsed = System.currentTimeMillis() - startTime;
             long sleepTime = frameTime - elapsed;
-            try { Thread.sleep(sleepTime); } catch (InterruptedException e) {}
+            if (sleepTime > 0) {
+                try { 
+                    Thread.sleep(sleepTime); 
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
     }
 
     private void update() {
-        // TODO: game state comes from network, no local update needed
+        if (notificationText != null && System.currentTimeMillis() > notificationEndTime) {
+            notificationText = null;
+        }
     }
 
     public void updateState(GameStateUpdate newState) {
@@ -77,6 +103,25 @@ public class GameScreen extends JPanel implements Runnable {
 
     public void setLocalPlayerId(int playerId) {
         hudRenderer.setLocalPlayerId(playerId);
+    }
+
+    public void showNotification(String text, Color color) {
+        this.notificationText = text;
+        this.notificationColor = color;
+        this.notificationEndTime = System.currentTimeMillis() + NOTIFICATION_DURATION_MS;
+    }
+
+    public long getLocalTimeRemainingMs() {
+        long elapsed = System.currentTimeMillis() - gameStartTime;
+        return Math.max(0, gameDurationMs - elapsed);
+    }
+
+    public void setGameDuration(long durationMs) {
+        this.gameDurationMs = durationMs;
+    }
+
+    public void resetTimer() {
+        this.gameStartTime = System.currentTimeMillis();
     }
 
     @Override
@@ -104,8 +149,30 @@ public class GameScreen extends JPanel implements Runnable {
     
         arenaRenderer.render(g2d, gameState);
         hudRenderer.render(g2d, gameState, BASE_WIDTH, BASE_HEIGHT);
+
+        if (notificationText != null) {
+            drawNotification(g2d);
+        }
     }
 
+    public void drawNotification(Graphics2D g2d) {
+        long timeLeft = notificationEndTime - System.currentTimeMillis();
+        float alpha = Math.min(1.0f, timeLeft / 500.0f);
+
+        Font notifyFont = new Font("Arial", Font.BOLD, 48);
+        g2d.setFont(notifyFont);
+        FontMetrics fm = g2d.getFontMetrics();
+
+        int textWidth = fm.stringWidth(notificationText);
+        int x = (BASE_WIDTH - textWidth) / 2;
+        int y = BASE_HEIGHT / 3;
+
+        g2d.setColor(new Color(0, 0, 0, (int)(200 * alpha)));
+        g2d.drawString(notificationText, x + 3, y + 3);
+
+        g2d.setColor(new Color(notificationColor.getRed(), notificationColor.getGreen(), notificationColor.getBlue(), (int)(255 * alpha)));
+        g2d.drawString(notificationText, x, y);
+    }
     public static void main(String[] args) {
         JFrame frame = new JFrame("ChronoArena");
         GameScreen game = new GameScreen();

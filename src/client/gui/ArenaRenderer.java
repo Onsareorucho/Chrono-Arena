@@ -90,7 +90,7 @@ public class ArenaRenderer {
 
         g2d.setColor(Color.ORANGE);
         int fillWidth = (int) (progress * width);
-        g2d.fillRect(x, y, width, barHeight);
+        g2d.fillRect(x, y, fillWidth, barHeight);
 
         g2d.setColor(Color.WHITE);
         g2d.drawRect(x, y, width, barHeight);
@@ -183,7 +183,6 @@ public class ArenaRenderer {
         int currentX = x - spacing;
 
         if (player.hasSpeedBoost) {
-            g2d.setColor(Color.MAGENTA);
             g2d.setColor(Color.MAGENTA);
             g2d.fillRect(currentX, y, indicatorSize, indicatorSize);
             g2d.setColor(Color.WHITE);

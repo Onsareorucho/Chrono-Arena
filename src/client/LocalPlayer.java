@@ -6,7 +6,6 @@ public class LocalPlayer {
     private String name = "Player";
     private int x, y;
     private int score = 0;
-    private int hp = 100;
     private boolean hasFreezeRay = false;
     private boolean isFrozen = false;
     private boolean hasSpeedBoost = false;

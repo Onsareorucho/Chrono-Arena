@@ -58,7 +58,7 @@ public class InputHandler implements KeyListener {
                 break;
 
             case KeyEvent.VK_E:
-                client.sendAction("COLLECT", "ITEM");
+                client.sendAction("USE_POWERUP", "");
                 break;
         }
     }
