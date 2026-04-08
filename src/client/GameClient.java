@@ -1,9 +1,13 @@
 package client;
 
+import java.awt.CardLayout;
+
 import javax.swing.JFrame;
+import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 import client.gui.GameScreen;
+import client.gui.MainMenuScreen;
 import client.network.ReconnectHandler;
 import shared.GameConfig;
 import shared.GameEvent;
@@ -13,43 +17,82 @@ import shared.PlayerInput;
 
 public class GameClient {
     
+    private JFrame frame;
+    private JPanel screenContainer;
+    private CardLayout cardLayout;
+
+    private MainMenuScreen mainMenuScreen;
     private GameScreen gameScreen;
     private InputHandler inputHandler;
     private LocalPlayer localPlayer;
 
     private ReconnectHandler networkManager;
 
-    private String serverIP;
-    private int tcpPort;
-    private int udpPort;
-    private String playerName;
+    private String serverIP = "localhost";
+    private int tcpPort = 9000;
+    private int udpPort = 9001;
+    private String playerName = "Player";
 
-    public GameClient(String serverIP, int tcpPort, int udpPort, String playerName) {
-        this.serverIP = serverIP;
-        this.tcpPort = tcpPort;
-        this.udpPort = udpPort;
-        this.playerName = playerName;
+    public GameClient() {
+        try {
+            GameConfig config = new GameConfig();
+            serverIP = config.getServerIp();
+            tcpPort = config.getServerTcpPort();
+            udpPort = config.getServerUdpPort();
+        } catch (Exception e) {
+            System.err.println("Using default connection settings");
+        }
     }
 
     public void start() {
 
-        localPlayer = new LocalPlayer();
-        localPlayer.setName(playerName);
-
-        gameScreen= new GameScreen();
-        inputHandler = new InputHandler(this);
-        gameScreen.addKeyListener(inputHandler);
-
-        JFrame frame = new JFrame("ChronoArena");
-        frame.add(gameScreen);
-        frame.pack();
+        frame = new JFrame("ChronoArena");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setResizable(false);
+
+        cardLayout = new CardLayout();
+        screenContainer = new JPanel(cardLayout);
+
+        mainMenuScreen = new MainMenuScreen();
+        gameScreen = new GameScreen();
+        inputHandler = new InputHandler(this);
+
+        screenContainer.add(mainMenuScreen, "MENU");
+        screenContainer.add(gameScreen, "GAME");
+
+        frame.add(screenContainer);
+        frame.pack();
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
 
+        showScreen("MENU");
+    }
+
+    private void showScreen(String screenName) {
+        cardLayout.show(screenContainer, screenName);
+
+        if("GAME".equals(screenName)) {
+            gameScreen.requestFocusInWindow();
+        } else if ("MENU".equals(screenName)) {
+            mainMenuScreen.requestFocusInWindow();
+        }
+    }
+
+    private void onPlayedClicked(String name) {
+        this.playerName = name;
+
+        localPlayer = new LocalPlayer();
+        localPlayer.setName(playerName);
+
+        gameScreen.addKeyListener(inputHandler);
+        gameScreen.setLocalPlayerId(-1);
+
+        showScreen("GAME");
         gameScreen.startGame();
 
-        connectToServer();
+        new Thread(() -> {
+            connectToServer();
+        }).start();
     }
 
     private void connectToServer() {
@@ -62,9 +105,15 @@ public class GameClient {
             networkManager.onGameEvent = this::onGameEvent;
             networkManager.onGameOver = result -> {
                 System.out.println("Game Over! Winner: " + result.getWinnerName());
-                gameScreen.stopGame();
-                gameScreen.showNotification("GAME OVER - " + result.getWinnerName() + "WINS!", java.awt.Color.YELLOW);
-                gameScreen.stopGame();
+                gameScreen.showNotification("WINNER:" + result.getWinnerName(), java.awt.Color.YELLOW);
+                
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        SwingUtilities.invokeLater(() -> returnToMenu());
+                    }
+                }).start();
             };
             networkManager.onKickReceived = kick -> { 
                 System.out.println("Kicked: " + kick.getReason());
@@ -85,6 +134,13 @@ public class GameClient {
             networkManager.onGiveUp = () -> {
                 System.out.println("Could not reconnect to server");
                 gameScreen.showNotification("CONNECTION LOST", java.awt.Color.RED);
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        SwingUtilities.invokeLater(() -> returnToMenu());
+                    }
+                }).start();
             };
 
             networkManager.connectAndStart();
@@ -96,6 +152,26 @@ public class GameClient {
 
         } catch (Exception e) {
             System.err.println("Failed to connect to server: " + e.getMessage());
+
+            SwingUtilities.invokeLater(() -> {
+                gameScreen.showNotification("CONNECTION FAILED", java.awt.Color.RED);
+                
+                // Return to menu after delay
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException ignored) {}
+                    SwingUtilities.invokeLater(() -> returnToMenu());
+                }).start();
+            });
+        }
+    }
+
+    private void returnToMenu() {
+        gameScreen.stopGame();
+        if (networkManager != null) {
+            networkManager.stop();
+            networkManager = null;
         }
     }
 
@@ -193,29 +269,9 @@ public class GameClient {
     public LocalPlayer getLocalPlayer() {
         return localPlayer;
     }
-    public static void main(String[] args) {
-        String ip = "localhost";
-        int tcp = 9000;
-        int udp = 9001;
-        String name = "Player";
-
-        try {
-            GameConfig config = new GameConfig();
-            ip = config.getServerIp();
-            tcp = config.getServerTcpPort();
-            udp = config.getServerUdpPort();
-            System.out.println("Loaded config: " + ip + ":" + tcp + "/" + udp);
-        } catch (Exception e) {
-            System.err.println("Using default connection settings: " + ip + ":" + tcp + "/" + udp);
-        }
-
-        final String finalIp = ip;
-        final int finalTcp= tcp;
-        final int finalUdp = udp;
-        final String finalName = name;
-        
+    public static void main(String[] args) {      
         SwingUtilities.invokeLater(() -> {
-            GameClient client = new GameClient(finalIp, finalTcp, finalUdp, finalName);
+            GameClient client = new GameClient();
             client.start();
         });
     }
