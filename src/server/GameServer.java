@@ -96,6 +96,16 @@ public class GameServer {
         System.out.println("Server stopped");
     }
 
+    public static void main(String[] args) {
+        GameServer server = new GameServer();
+        server.start();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(server::stop, "shutdown"));
+
+        // Block main thread so the JVM stays alive
+        try { Thread.currentThread().join(); } catch (InterruptedException ignored) {}
+    }
+
     // expose for P2 / ActionProcessor
     public GameState getGameState()                    { return gameState; }
     public ActionQueue getActionQueue()                { return actionQueue; }
