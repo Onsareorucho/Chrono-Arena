@@ -1,11 +1,15 @@
 package server.network;
 
 import server.GameStateSnapshot;
+import server.Item;
+import server.Player;
+import server.Zone;
 import server.logic.ActionQueue;
 import shared.*;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -70,7 +74,65 @@ public class ServerNetworkManager {
 
     /** Broadcast full game state snapshot to all clients every tick. */
     public void broadcastGameState(GameStateSnapshot snapshot) {
-        tcp.broadcast(new GameMessage(MessageType.GAME_STATE_UPDATE, (java.io.Serializable) snapshot));
+        tcp.broadcast(new GameMessage(MessageType.GAME_STATE_UPDATE, toUpdate(snapshot)));
+    }
+
+    /**
+     * Converts the server-internal GameStateSnapshot into the shared GameStateUpdate
+     * that the client networking layer expects.
+     */
+    private static GameStateUpdate toUpdate(GameStateSnapshot snap) {
+        List<GameStateUpdate.PlayerSnapshot> players = new java.util.ArrayList<>();
+        if (snap.players != null) {
+            for (Player p : snap.players) {
+                players.add(new GameStateUpdate.PlayerSnapshot(
+                    p.getPlayerId(),
+                    p.getPlayerName(),
+                    (float) p.getPlayerPositionX(),
+                    (float) p.getPlayerPositionY(),
+                    p.getPlayerScore(),
+                    p.isFrozen(),
+                    p.isHasSpeedBoost(),
+                    p.isArmed()          // isArmed == hasFreezeRay
+                ));
+            }
+        }
+
+        List<GameStateUpdate.ZoneSnapshot> zones = new java.util.ArrayList<>();
+        if (snap.zones != null) {
+            for (int i = 0; i < snap.zones.size(); i++) {
+                Zone z = snap.zones.get(i);
+                int totalTicks = (int) Math.max(1, GameConstants.ZONE_CAPTURE_TIME_MS / 50);
+                float captureProgress = (z.getCaptureTicksLeft() == 0) ? 1f
+                    : 1f - (float) z.getCaptureTicksLeft() / totalTicks;
+                zones.add(new GameStateUpdate.ZoneSnapshot(
+                    i,                                   // int id (index; renderer just needs unique)
+                    (float) z.getZonePositionX(),
+                    (float) z.getZonePositionY(),
+                    (float) z.getZoneWidth(),            // width used as size hint ("radius")
+                    z.getControllingPlayerId(),
+                    z.getContestingPlayerId(),
+                    captureProgress
+                ));
+            }
+        }
+
+        List<GameStateUpdate.ItemSnapshot> items = new java.util.ArrayList<>();
+        if (snap.items != null) {
+            for (int i = 0; i < snap.items.size(); i++) {
+                Item item = snap.items.get(i);
+                if (!item.isAvailable()) continue;
+                items.add(new GameStateUpdate.ItemSnapshot(
+                    i,
+                    item.getItemType(),
+                    (float) item.getItemPositionX(),
+                    (float) item.getItemPositionY()
+                ));
+            }
+        }
+
+        return new GameStateUpdate(players, zones, items,
+                                   snap.timeRemainingMs, (int)(snap.tickNumber & Integer.MAX_VALUE));
     }
 
     /** Broadcast score map to all clients. */
