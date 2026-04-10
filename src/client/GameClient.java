@@ -57,6 +57,8 @@ public class GameClient {
         gameScreen = new GameScreen();
         inputHandler = new InputHandler(this);
 
+        mainMenuScreen.setOnPlayClicked(this::onPlayedClicked);
+
         screenContainer.add(mainMenuScreen, "MENU");
         screenContainer.add(gameScreen, "GAME");
 

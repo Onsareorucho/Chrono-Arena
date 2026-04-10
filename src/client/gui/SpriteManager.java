@@ -114,7 +114,6 @@ public class SpriteManager {
         loadSprite("item_speed", "item_speed.png");
 
         // ==== UI SPRTIES ====
-        loadSprite("health_bar_border", "health_bar_border.png");
         loadSprite("cooldown_ready", "cooldown_ready.png");
         loadSprite("cooldown_active", "cooldown_active.png");
 

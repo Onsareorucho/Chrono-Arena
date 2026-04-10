@@ -49,7 +49,7 @@ public class MainMenuScreen extends JPanel {
     private Color statusColor = Color.WHITE;
 
     public interface PlayCallback {
-        void onPlay(String playerName);
+        void onPlayClicked(String playerName);
     }
 
     public MainMenuScreen() {
@@ -171,7 +171,7 @@ public class MainMenuScreen extends JPanel {
         setStatus("Connecting...", ACCENT);
  
         if (onPlayClicked != null) {
-            onPlayClicked.onPlay(name);
+            onPlayClicked.onPlayClicked(name);
         }
     }
 
