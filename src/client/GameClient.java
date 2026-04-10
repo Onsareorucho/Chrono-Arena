@@ -7,6 +7,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 import client.gui.GameScreen;
+import client.gui.LobbyScreen;
 import client.gui.MainMenuScreen;
 import client.network.ReconnectHandler;
 import shared.GameConfig;
@@ -22,6 +23,7 @@ public class GameClient {
     private CardLayout cardLayout;
 
     private MainMenuScreen mainMenuScreen;
+    private LobbyScreen lobbyScreen;
     private GameScreen gameScreen;
     private InputHandler inputHandler;
     private LocalPlayer localPlayer;
@@ -32,6 +34,8 @@ public class GameClient {
     private int tcpPort = 9000;
     private int udpPort = 9001;
     private String playerName = "Player";
+
+    private boolean gameStarted = false;
 
     public GameClient() {
         try {
@@ -54,12 +58,15 @@ public class GameClient {
         screenContainer = new JPanel(cardLayout);
 
         mainMenuScreen = new MainMenuScreen();
+        lobbyScreen = new LobbyScreen();
         gameScreen = new GameScreen();
         inputHandler = new InputHandler(this);
 
         mainMenuScreen.setOnPlayClicked(this::onPlayedClicked);
+        lobbyScreen.setOnGameStart(this::onGameStarted);
 
         screenContainer.add(mainMenuScreen, "MENU");
+        screenContainer.add(lobbyScreen, "LOBBY");
         screenContainer.add(gameScreen, "GAME");
 
         frame.add(screenContainer);
@@ -73,10 +80,16 @@ public class GameClient {
     private void showScreen(String screenName) {
         cardLayout.show(screenContainer, screenName);
 
-        if("GAME".equals(screenName)) {
-            gameScreen.requestFocusInWindow();
-        } else if ("MENU".equals(screenName)) {
-            mainMenuScreen.requestFocusInWindow();
+        switch (screenName) {
+            case "GAME" -> {
+                gameScreen.requestFocusInWindow();
+            }
+            case "MENU" -> {
+                mainMenuScreen.requestFocusInWindow();
+            }
+            case "LOBBY" -> {
+                lobbyScreen.requestFocusInWindow();
+            }
         }
     }
 
@@ -86,15 +99,33 @@ public class GameClient {
         localPlayer = new LocalPlayer();
         localPlayer.setName(playerName);
 
-        gameScreen.addKeyListener(inputHandler);
-        gameScreen.setLocalPlayerId(-1);
+        // Add input handler to lobby screen for practice movement
+        lobbyScreen.addKeyListener(inputHandler);
+        lobbyScreen.setLocalPlayerName(playerName);
 
-        showScreen("GAME");
-        gameScreen.startGame();
+        showScreen("LOBBY");
+        lobbyScreen.startLobby();
 
         new Thread(() -> {
             connectToServer();
         }).start();
+    }
+
+    private void onGameStarted() {
+        if (gameStarted) return;
+        gameStarted = true;
+
+        SwingUtilities.invokeLater(() -> {
+            lobbyScreen.stopLobby();
+            
+            // Transfer input handler to game screen
+            lobbyScreen.removeKeyListener(inputHandler);
+            gameScreen.addKeyListener(inputHandler);
+            gameScreen.setLocalPlayerId(localPlayer.getID());
+
+            showScreen("GAME");
+            gameScreen.startGame();
+        });
     }
 
     private void connectToServer() {
@@ -123,6 +154,8 @@ public class GameClient {
             };
             networkManager.onPlayerJoined = playerId -> {
                 System.out.println("Player " + playerId + " joined");
+                // Update lobby player count
+                lobbyScreen.setPlayerCount(playerId);
             };
             networkManager.onPlayerLeft = playerId -> {
                 System.out.println("Player " + playerId + " left");
@@ -131,11 +164,14 @@ public class GameClient {
                 System.out.println("Reconnected to server!");
 
                 localPlayer.setID(networkManager.getPlayerId());
+                lobbyScreen.setLocalPlayerId(networkManager.getPlayerId());
                 gameScreen.setLocalPlayerId(networkManager.getPlayerId());
             };
             networkManager.onGiveUp = () -> {
                 System.out.println("Could not reconnect to server");
-                gameScreen.showNotification("CONNECTION LOST", java.awt.Color.RED);
+                if (gameStarted) {
+                    gameScreen.showNotification("CONNECTION LOST", java.awt.Color.RED);
+                }
                 new Thread(() -> {
                     try {
                         Thread.sleep(5000);
@@ -148,6 +184,7 @@ public class GameClient {
             networkManager.connectAndStart();
 
             localPlayer.setID(networkManager.getPlayerId());
+            lobbyScreen.setLocalPlayerId(networkManager.getPlayerId());
             gameScreen.setLocalPlayerId(networkManager.getPlayerId());
 
             System.out.println("Connected as player: " + networkManager.getPlayerId());
@@ -156,9 +193,7 @@ public class GameClient {
             System.err.println("Failed to connect to server: " + e.getMessage());
 
             SwingUtilities.invokeLater(() -> {
-                gameScreen.showNotification("CONNECTION FAILED", java.awt.Color.RED);
-                
-                // Return to menu after delay
+                // Show error and return to menu
                 new Thread(() -> {
                     try {
                         Thread.sleep(2000);
@@ -170,15 +205,17 @@ public class GameClient {
     }
 
     private void returnToMenu() {
+        gameStarted = false;
+        lobbyScreen.stopLobby();
         gameScreen.stopGame();
         if (networkManager != null) {
             networkManager.stop();
             networkManager = null;
         }
+        showScreen("MENU");
     }
 
     public void sendMovement(int dx, int dy) {
-
         if (networkManager != null) {
             PlayerInput input = PlayerInput.move(dx, dy);
             networkManager.sendInput(input);
@@ -205,8 +242,22 @@ public class GameClient {
     }
 
     public void onGameStateReceived(GameStateUpdate gameState) {
-        gameScreen.updateState(gameState);
+        // Update the appropriate screen based on game state
+        if (!gameStarted) {
+            // Still in lobby - update lobby screen
+            lobbyScreen.updateState(gameState);
+            
+            // Check if game should start (e.g., when server sends a signal)
+            // For now, we'll start when we have 4 players or you can add a GAME_START event
+            if (gameState.getPlayers().size() >= 4) {
+                onGameStarted();
+            }
+        } else {
+            // Game is running - update game screen
+            gameScreen.updateState(gameState);
+        }
 
+        // Always update local player state
         for (GameStateUpdate.PlayerSnapshot player : gameState.getPlayers()) {
             if (player.playerId == localPlayer.getID()) {
                 localPlayer.setPosition((int) player.x, (int) player.y);
@@ -216,11 +267,12 @@ public class GameClient {
                 localPlayer.setHasSpeedBoost(player.hasSpeedBoost);
                 break;
             }
-            
         }
     }
 
     public void onGameEvent(GameEvent event) {
+        if (!gameStarted) return;
+
         switch (event.getEventType()) {
             case PLAYER_FROZEN:
                 if (event.getTargetPlayerId() == localPlayer.getID()) {
@@ -260,6 +312,7 @@ public class GameClient {
     public void onKicked(String reason) {
         System.out.println("Kicked from server: " + reason);
         gameScreen.stopGame();
+        lobbyScreen.stopLobby();
     }
 
     public void disconnect() {
@@ -271,6 +324,11 @@ public class GameClient {
     public LocalPlayer getLocalPlayer() {
         return localPlayer;
     }
+
+    public boolean isGameStarted() {
+        return gameStarted;
+    }
+
     public static void main(String[] args) {      
         SwingUtilities.invokeLater(() -> {
             GameClient client = new GameClient();
