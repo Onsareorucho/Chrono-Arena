@@ -18,3 +18,4 @@ Thumbs.db
 .agents
 .claude/
 skills-lock.json
+dependency-reduced-pom.xml
