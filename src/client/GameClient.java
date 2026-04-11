@@ -11,6 +11,7 @@ import client.gui.GameOverScreen;
 import client.gui.GameScreen;
 import client.gui.LobbyScreen;
 import client.gui.MainMenuScreen;
+import client.gui.SoundManager;
 import client.network.ReconnectHandler;
 import shared.GameConfig;
 import shared.GameEvent;
@@ -30,6 +31,8 @@ public class GameClient {
     private GameOverScreen gameOverScreen;
     private InputHandler inputHandler;
     private LocalPlayer localPlayer;
+
+    private SoundManager soundManager;
 
     private ReconnectHandler networkManager;
 
@@ -68,6 +71,9 @@ public class GameClient {
         gameOverScreen = new GameOverScreen();
         inputHandler = new InputHandler(this);
 
+        soundManager = new SoundManager();
+        soundManager.loadAllSounds();
+
         mainMenuScreen.setOnPlayClicked(this::onPlayedClicked);
         lobbyScreen.setOnGameStart(this::onGameStarted);
         gameOverScreen.setOnReturnToMenu(this::returnToMenu);
@@ -75,7 +81,7 @@ public class GameClient {
         screenContainer.add(mainMenuScreen, "MENU");
         screenContainer.add(lobbyScreen, "LOBBY");
         screenContainer.add(gameScreen, "GAME");
-        screenContainer.add(gameOverScreen, "GAMEOvER");
+        screenContainer.add(gameOverScreen, "GAMEOVER");
 
         frame.add(screenContainer);
         frame.pack();
@@ -91,15 +97,19 @@ public class GameClient {
         switch (screenName) {
             case "GAME" -> {
                 gameScreen.requestFocusInWindow();
+                soundManager.playMusic("game");
             }
             case "MENU" -> {
                 mainMenuScreen.requestFocusInWindow();
+                soundManager.playMusic("menu");
             }
             case "LOBBY" -> {
                 lobbyScreen.requestFocusInWindow();
+                soundManager.playMusic("lobby");
             }
-            case "GAMEOBER" -> {
+            case "GAMEOVER" -> {
                 gameOverScreen.requestFocusInWindow();
+                soundManager.playMusic("gameover");
             }
         }
     }
@@ -163,15 +173,8 @@ public class GameClient {
             networkManager.onGameEvent = this::onGameEvent;
             networkManager.onGameOver = result -> {
                 System.out.println("Game Over! Winner: " + result.getWinnerName());
-                gameScreen.showNotification("WINNER:" + result.getWinnerName(), java.awt.Color.YELLOW);
-                
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(5000);
-                    } catch (InterruptedException e) {
-                        SwingUtilities.invokeLater(() -> returnToMenu());
-                    }
-                }).start();
+                int winnerScore = result.getLeaderboard().isEmpty() ? 0 : result.getLeaderboard().get(0).totalScore;
+                onGameOver(result.getWinnerName(), winnerScore);
             };
             networkManager.onKickReceived = kick -> { 
                 System.out.println("Kicked: " + kick.getReason());
@@ -272,12 +275,6 @@ public class GameClient {
         if (!gameStarted) {
             // Still in lobby - update lobby screen
             lobbyScreen.updateState(gameState);
-            
-            // Check if game should start (e.g., when server sends a signal)
-            // For now, we'll start when we have 4 players or you can add a GAME_START event
-            if (gameState.getPlayers().size() >= 4) {
-                onGameStarted();
-            }
         } else {
             // Game is running - update game screen
             gameScreen.updateState(gameState);
@@ -297,6 +294,14 @@ public class GameClient {
     }
 
     public void onGameEvent(GameEvent event) {
+        
+        if (event.getEventType() == GameEvent.EventType.GAME_STARTED) {
+            System.out.println("Server started the game!");
+            soundManager.playSound("game_start");
+            onGameStarted();
+            return;
+        }
+        
         if (!gameStarted) return;
 
         switch (event.getEventType()) {
