@@ -1,11 +1,13 @@
 package client;
 
 import java.awt.CardLayout;
+import java.util.List;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
+import client.gui.GameOverScreen;
 import client.gui.GameScreen;
 import client.gui.LobbyScreen;
 import client.gui.MainMenuScreen;
@@ -25,6 +27,7 @@ public class GameClient {
     private MainMenuScreen mainMenuScreen;
     private LobbyScreen lobbyScreen;
     private GameScreen gameScreen;
+    private GameOverScreen gameOverScreen;
     private InputHandler inputHandler;
     private LocalPlayer localPlayer;
 
@@ -36,6 +39,8 @@ public class GameClient {
     private String playerName = "Player";
 
     private boolean gameStarted = false;
+
+    private GameStateUpdate lastGameState;
 
     public GameClient() {
         try {
@@ -60,14 +65,17 @@ public class GameClient {
         mainMenuScreen = new MainMenuScreen();
         lobbyScreen = new LobbyScreen();
         gameScreen = new GameScreen();
+        gameOverScreen = new GameOverScreen();
         inputHandler = new InputHandler(this);
 
         mainMenuScreen.setOnPlayClicked(this::onPlayedClicked);
         lobbyScreen.setOnGameStart(this::onGameStarted);
+        gameOverScreen.setOnReturnToMenu(this::returnToMenu);
 
         screenContainer.add(mainMenuScreen, "MENU");
         screenContainer.add(lobbyScreen, "LOBBY");
         screenContainer.add(gameScreen, "GAME");
+        screenContainer.add(gameOverScreen, "GAMEOvER");
 
         frame.add(screenContainer);
         frame.pack();
@@ -89,6 +97,9 @@ public class GameClient {
             }
             case "LOBBY" -> {
                 lobbyScreen.requestFocusInWindow();
+            }
+            case "GAMEOBER" -> {
+                gameOverScreen.requestFocusInWindow();
             }
         }
     }
@@ -125,6 +136,20 @@ public class GameClient {
 
             showScreen("GAME");
             gameScreen.startGame();
+        });
+    }
+
+    private void onGameOver(String winnerName, int winnerScore) {
+        SwingUtilities.invokeLater(() -> {
+            gameScreen.stopGame();
+            gameScreen.removeKeyListener(inputHandler);
+ 
+            // Get final standings from last game state
+            List<GameStateUpdate.PlayerSnapshot> standings = 
+                (lastGameState != null) ? lastGameState.getPlayers() : List.of();
+ 
+            gameOverScreen.showGameOver(winnerName, winnerScore, standings);
+            showScreen("GAMEOVER");
         });
     }
 
@@ -208,6 +233,7 @@ public class GameClient {
         gameStarted = false;
         lobbyScreen.stopLobby();
         gameScreen.stopGame();
+        gameOverScreen.stopScreen();
         if (networkManager != null) {
             networkManager.stop();
             networkManager = null;

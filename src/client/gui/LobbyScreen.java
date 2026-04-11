@@ -49,31 +49,26 @@ public class LobbyScreen extends JPanel implements Runnable {
     private Thread lobbyThread;
     private volatile boolean running = false;
 
-    // Sprite manager for player sprites
     private SpriteManager spriteManager;
 
     // Lobby state
     private int currentPlayerCount = 1;
-    private int maxPlayers = 4;
+    private int maxPlayers = 2;
     private int localPlayerId = -1;
     private String localPlayerName = "Player";
     private List<PlayerSnapshot> players = new ArrayList<>();
 
-    // Animation
     private float dotAnimation = 0;
     private long startTime;
 
-    // Callback when game starts
     private Runnable onGameStart;
 
-    // Practice arena bounds (where players can move)
     private static final int ARENA_X = 50;
     private static final int ARENA_Y = 120;
     private static final int ARENA_WIDTH = 500;
     private static final int ARENA_HEIGHT = 400;
 
-    // Player sprite size
-    private static final int PLAYER_SIZE = 80;
+    private static final int PLAYER_SIZE = 60;
 
     public LobbyScreen() {
         setPreferredSize(new Dimension(WIDTH, HEIGHT));
@@ -81,7 +76,6 @@ public class LobbyScreen extends JPanel implements Runnable {
         setFocusable(true);
         startTime = System.currentTimeMillis();
 
-        // Initialize sprite manager
         spriteManager = new SpriteManager();
         spriteManager.loadAllSprites();
     }
@@ -125,9 +119,6 @@ public class LobbyScreen extends JPanel implements Runnable {
         if (dotAnimation > 3) dotAnimation = 0;
     }
 
-    /**
-     * Update lobby state from server
-     */
     public void updateState(GameStateUpdate state) {
         if (state != null) {
             this.players = state.getPlayers();
@@ -135,9 +126,6 @@ public class LobbyScreen extends JPanel implements Runnable {
         }
     }
 
-    /**
-     * Update player count directly (before full state updates)
-     */
     public void setPlayerCount(int count) {
         this.currentPlayerCount = count;
     }
@@ -158,9 +146,6 @@ public class LobbyScreen extends JPanel implements Runnable {
         this.onGameStart = callback;
     }
 
-    /**
-     * Called when server signals game is starting
-     */
     public void triggerGameStart() {
         if (onGameStart != null) {
             onGameStart.run();
@@ -174,12 +159,10 @@ public class LobbyScreen extends JPanel implements Runnable {
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        // Background gradient
         GradientPaint gradient = new GradientPaint(0, 0, BG_TOP, 0, HEIGHT, BG_BOTTOM);
         g2d.setPaint(gradient);
         g2d.fillRect(0, 0, WIDTH, HEIGHT);
 
-        // Draw components
         drawHeader(g2d);
         drawPracticeArena(g2d);
         drawPlayers(g2d);
@@ -188,60 +171,50 @@ public class LobbyScreen extends JPanel implements Runnable {
     }
 
     private void drawHeader(Graphics2D g2d) {
-        // Status text: "2/4 players - Waiting for others..."
         String countText = currentPlayerCount + "/" + maxPlayers + " players";
         String statusText;
         
         if (currentPlayerCount >= maxPlayers) {
             statusText = "Starting soon!";
         } else {
-            // Animated dots
             int dots = (int) dotAnimation;
             statusText = "Waiting for others" + ".".repeat(dots + 1);
         }
 
-        // Draw title
         g2d.setFont(new Font("Arial", Font.BOLD, 36));
         FontMetrics fm = g2d.getFontMetrics();
         
         String title = "LOBBY";
         int titleX = (WIDTH - fm.stringWidth(title)) / 2;
         
-        // Glow effect
         g2d.setColor(new Color(ACCENT.getRed(), ACCENT.getGreen(), ACCENT.getBlue(), 50));
         g2d.drawString(title, titleX - 2, 50);
         g2d.drawString(title, titleX + 2, 50);
         g2d.setColor(TEXT_PRIMARY);
         g2d.drawString(title, titleX, 50);
 
-        // Draw player count
         g2d.setFont(new Font("Arial", Font.BOLD, 24));
         fm = g2d.getFontMetrics();
         
         String fullStatus = countText + " — " + statusText;
         int statusX = (WIDTH - fm.stringWidth(fullStatus)) / 2;
         
-        // Count in accent color
         g2d.setColor(ACCENT);
         g2d.drawString(countText, statusX, 85);
         
-        // Dash and status in secondary color
         g2d.setColor(TEXT_SECONDARY);
         int dashX = statusX + fm.stringWidth(countText);
         g2d.drawString(" — " + statusText, dashX, 85);
     }
 
     private void drawPracticeArena(Graphics2D g2d) {
-        // Arena background
         g2d.setColor(ARENA_BG);
         g2d.fill(new RoundRectangle2D.Float(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT, 15, 15));
 
-        // Arena border
         g2d.setColor(ARENA_BORDER);
         g2d.setStroke(new BasicStroke(3));
         g2d.draw(new RoundRectangle2D.Float(ARENA_X, ARENA_Y, ARENA_WIDTH, ARENA_HEIGHT, 15, 15));
 
-        // Grid lines (subtle)
         g2d.setColor(new Color(60, 60, 90, 50));
         g2d.setStroke(new BasicStroke(1));
         int gridSize = 50;
@@ -252,7 +225,6 @@ public class LobbyScreen extends JPanel implements Runnable {
             g2d.drawLine(ARENA_X, y, ARENA_X + ARENA_WIDTH, y);
         }
 
-        // Label
         g2d.setFont(new Font("Arial", Font.PLAIN, 12));
         g2d.setColor(TEXT_SECONDARY);
         g2d.drawString("Practice Area - Move around with WASD", ARENA_X + 10, ARENA_Y + ARENA_HEIGHT - 10);
@@ -262,20 +234,16 @@ public class LobbyScreen extends JPanel implements Runnable {
         long elapsed = System.currentTimeMillis() - startTime;
 
         if (players.isEmpty()) {
-            // Draw local player placeholder if no state yet
             float bobOffset = (float) Math.sin(elapsed * 0.003) * 3;
             int x = ARENA_X + ARENA_WIDTH / 2;
             int y = ARENA_Y + ARENA_HEIGHT / 2 + (int) bobOffset;
 
             drawSinglePlayer(g2d, x, y, 1, localPlayerName, false, true, elapsed);
         } else {
-            // Draw all players from state
             for (PlayerSnapshot player : players) {
-                // Convert tile coords to pixel coords within arena
-                int x = ARENA_X + (int) (player.x * 30); // Assuming tile size 30
+                int x = ARENA_X + (int) (player.x * 30);
                 int y = ARENA_Y + (int) (player.y * 30);
 
-                // Clamp to arena bounds
                 x = Math.max(ARENA_X + PLAYER_SIZE/2, Math.min(ARENA_X + ARENA_WIDTH - PLAYER_SIZE/2, x));
                 y = Math.max(ARENA_Y + PLAYER_SIZE/2, Math.min(ARENA_Y + ARENA_HEIGHT - PLAYER_SIZE/2, y));
 
@@ -288,10 +256,7 @@ public class LobbyScreen extends JPanel implements Runnable {
         }
     }
 
-    private void drawSinglePlayer(Graphics2D g2d, int x, int y, int playerId, 
-                                   String name, boolean isFrozen, boolean isLocal, long elapsed) {
-        
-        // Determine animation name
+    private void drawSinglePlayer(Graphics2D g2d, int x, int y, int playerId, String name, boolean isFrozen, boolean isLocal, long elapsed) {
         String animName;
         int frameSpeed;
 
