@@ -5,7 +5,6 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -16,6 +15,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 
 import javax.swing.JPanel;
 import javax.swing.JTextField;
@@ -26,27 +26,26 @@ public class MainMenuScreen extends JPanel {
     private static final int WIDTH = 800;
     private static final int HEIGHT = 600;
 
-    private static final Color BG_TOP = new Color(20, 20, 40);
-    private static final Color BG_BOTTOM = new Color(40, 20, 60);
-    private static final Color ACCENT = new Color(0, 200, 255);
-    private static final Color ACCENT_HOVER = new Color(100, 220, 255);
-    private static final Color BUTTON_BG = new Color(50, 50, 80);
-    private static final Color BUTTON_HOVER = new Color(70, 70, 110);
-    private static final Color TEXT_PRIMARY = Color.WHITE;
-    private static final Color TEXT_SECONDARY = new Color(180, 180, 200);
+    private static final Color ACCENT = new Color(201, 180, 117);
+    private static final Color ACCENT_HOVER = new Color(255, 242, 201);
+    private static final Color BUTTON_BG = new Color(169, 145, 71);
+    private static final Color BUTTON_HOVER = new Color(204, 185, 129);
+    private static final Color TEXT_PRIMARY = new Color(255, 210, 87);
+    private static final Color TEXT_SECONDARY = new Color(255, 242, 201);
 
     private JTextField nameField;
 
     private MenuButton playButton;
     private MenuButton quitButton;
 
-    private float titleGlow = 0f;
     private Timer animationTimer;
 
     private PlayCallback onPlayClicked;
 
     private String statusMessage = "";
     private Color statusColor = Color.WHITE;
+
+    private SpriteManager spriteManager;
 
     public interface PlayCallback {
         void onPlayClicked(String playerName);
@@ -56,7 +55,10 @@ public class MainMenuScreen extends JPanel {
         setPreferredSize(new Dimension(WIDTH, HEIGHT));
         setLayout(null);
         setFocusable(true);
- 
+
+        spriteManager = new SpriteManager();
+        spriteManager.loadSprite("menu_background", "menu_background.png");
+        
         setupInputFields();
         setupButtons();
         startAnimation();
@@ -64,7 +66,7 @@ public class MainMenuScreen extends JPanel {
 
     private void setupInputFields() {
         nameField = createStyledTextField("Enter your name...");
-        nameField.setBounds(WIDTH / 2 - 150, 300, 300, 40);
+        nameField.setBounds(WIDTH / 2 - 150, 225, 300, 40);
         add(nameField);
  
         nameField.addKeyListener(new KeyAdapter() {
@@ -115,10 +117,10 @@ public class MainMenuScreen extends JPanel {
     }
     
     private void setupButtons() {
-        playButton = new MenuButton("PLAY", WIDTH / 2 - 100, 420, 200, 50);
+        playButton = new MenuButton("PLAY", WIDTH / 2 - 100, 345, 200, 50);
         playButton.setOnClick(this::handlePlay);
  
-        quitButton = new MenuButton("QUIT", WIDTH / 2 - 80, 490, 160, 40);
+        quitButton = new MenuButton("QUIT", WIDTH / 2 - 80, 435, 160, 40);
         quitButton.setOnClick(() -> System.exit(0));
  
         // Mouse listener for button hover/click detection
@@ -150,8 +152,6 @@ public class MainMenuScreen extends JPanel {
 
     private void startAnimation() {
         animationTimer = new Timer(50, e -> {
-            titleGlow += 0.05f;
-            if (titleGlow > Math.PI * 2) titleGlow = 0;
             repaint();
         });
         animationTimer.start();
@@ -197,15 +197,17 @@ public class MainMenuScreen extends JPanel {
         Graphics2D g2d = (Graphics2D) g;
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
- 
-        GradientPaint gradient = new GradientPaint(0, 0, BG_TOP, 0, HEIGHT, BG_BOTTOM);
-        g2d.setPaint(gradient);
-        g2d.fillRect(0, 0, WIDTH, HEIGHT);
- 
-        drawBackgroundParticles(g2d);
- 
-        drawTitle(g2d);
- 
+
+        // Draw background image
+        if (spriteManager.hasSprite("menu_background")) {
+            BufferedImage bg = spriteManager.getSprite("menu_background");
+            g2d.drawImage(bg, 0, 0, WIDTH, HEIGHT, null);
+        } else {
+            // Fallback solid color if image not loaded
+            g2d.setColor(new Color(30, 30, 50));
+            g2d.fillRect(0, 0, WIDTH, HEIGHT);
+        }
+
         drawLabels(g2d);
  
         playButton.draw(g2d);
@@ -216,71 +218,15 @@ public class MainMenuScreen extends JPanel {
             FontMetrics fm = g2d.getFontMetrics();
             int x = (WIDTH - fm.stringWidth(statusMessage)) / 2;
             g2d.setColor(statusColor);
-            g2d.drawString(statusMessage, x, 400);
+            g2d.drawString(statusMessage, x, 300);
         }
- 
-        g2d.setFont(new Font("Arial", Font.PLAIN, 12));
-        g2d.setColor(TEXT_SECONDARY);
-        String footer = "WASD to move • SPACE to freeze • E to use powerup";
-        FontMetrics fm = g2d.getFontMetrics();
-        g2d.drawString(footer, (WIDTH - fm.stringWidth(footer)) / 2, HEIGHT - 30);
-    }
-
-    private void drawBackgroundParticles(Graphics2D g2d) {
-        g2d.setColor(new Color(255, 255, 255, 20));
-        long time = System.currentTimeMillis();
-        for (int i = 0; i < 30; i++) {
-            float x = (float) ((Math.sin(time * 0.001 + i * 0.5) + 1) * WIDTH / 2);
-            float y = (float) ((Math.cos(time * 0.0008 + i * 0.7) + 1) * HEIGHT / 2);
-            int size = 2 + (i % 3);
-            g2d.fillOval((int) x, (int) y, size, size);
-        }
-    }
-
-    private void drawTitle(Graphics2D g2d) {
-        String title = "CHRONOARENA";
-        Font titleFont = new Font("Arial", Font.BOLD, 72);
-        g2d.setFont(titleFont);
-        FontMetrics fm = g2d.getFontMetrics();
- 
-        int x = (WIDTH - fm.stringWidth(title)) / 2;
-        int y = 150;
- 
-        // Glow effect
-        float glowIntensity = (float) (Math.sin(titleGlow) + 1) / 2 * 0.5f + 0.5f;
-        Color glowColor = new Color(
-            (int) (ACCENT.getRed() * glowIntensity),
-            (int) (ACCENT.getGreen() * glowIntensity),
-            (int) (ACCENT.getBlue() * glowIntensity),
-            100
-        );
- 
-        // Draw glow layers
-        g2d.setColor(glowColor);
-        for (int i = 5; i > 0; i--) {
-            g2d.drawString(title, x - i, y);
-            g2d.drawString(title, x + i, y);
-            g2d.drawString(title, x, y - i);
-            g2d.drawString(title, x, y + i);
-        }
- 
-        // Draw main title
-        g2d.setColor(TEXT_PRIMARY);
-        g2d.drawString(title, x, y);
- 
-        // Subtitle
-        g2d.setFont(new Font("Arial", Font.PLAIN, 18));
-        g2d.setColor(TEXT_SECONDARY);
-        String subtitle = "Control Time. Capture Zones. Dominate.";
-        fm = g2d.getFontMetrics();
-        g2d.drawString(subtitle, (WIDTH - fm.stringWidth(subtitle)) / 2, y + 35);
     }
 
     private void drawLabels(Graphics2D g2d) {
         g2d.setFont(new Font("Arial", Font.BOLD, 14));
         g2d.setColor(TEXT_SECONDARY);
  
-        g2d.drawString("PLAYER NAME", WIDTH / 2 - 150, 290);
+        g2d.drawString("PLAYER NAME", WIDTH / 2 - 150, 215);
     }
 
 
