@@ -5,7 +5,6 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -37,14 +36,12 @@ public class LobbyScreen extends JPanel implements Runnable {
     private static final int TARGET_FPS = 60;
 
     // Colors
-    private static final Color BG_TOP = new Color(15, 15, 35);
-    private static final Color BG_BOTTOM = new Color(30, 20, 50);
-    private static final Color ACCENT = new Color(0, 200, 255);
-    private static final Color TEXT_PRIMARY = Color.WHITE;
-    private static final Color TEXT_SECONDARY = new Color(180, 180, 200);
-    private static final Color PANEL_BG = new Color(40, 40, 70, 200);
-    private static final Color ARENA_BG = new Color(20, 20, 40);
-    private static final Color ARENA_BORDER = new Color(80, 80, 120);
+    private static final Color ACCENT = new Color(201, 180, 117);
+    private static final Color TEXT_PRIMARY = new Color(255, 210, 87);
+    private static final Color TEXT_SECONDARY = new Color(255, 242, 201);
+    private static final Color PANEL_BG = new Color(201, 180, 117, 200);
+    private static final Color ARENA_BG = new Color(169, 145, 71);
+    private static final Color ARENA_BORDER = new Color(201, 180, 117);
 
     private Thread lobbyThread;
     private volatile boolean running = false;
@@ -159,9 +156,13 @@ public class LobbyScreen extends JPanel implements Runnable {
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        GradientPaint gradient = new GradientPaint(0, 0, BG_TOP, 0, HEIGHT, BG_BOTTOM);
-        g2d.setPaint(gradient);
-        g2d.fillRect(0, 0, WIDTH, HEIGHT);
+        if (spriteManager.hasSprite("lobby_background")) {
+            BufferedImage bg = spriteManager.getSprite("lobby_background");
+            g2d.drawImage(bg, 0, 0, WIDTH, HEIGHT, null);
+        } else {
+            g2d.setColor(new Color(30, 30, 50));
+            g2d.fillRect(0, 0, WIDTH, HEIGHT);
+        }
 
         drawHeader(g2d);
         drawPracticeArena(g2d);
@@ -181,20 +182,8 @@ public class LobbyScreen extends JPanel implements Runnable {
             statusText = "Waiting for others" + ".".repeat(dots + 1);
         }
 
-        g2d.setFont(new Font("Arial", Font.BOLD, 36));
-        FontMetrics fm = g2d.getFontMetrics();
-        
-        String title = "LOBBY";
-        int titleX = (WIDTH - fm.stringWidth(title)) / 2;
-        
-        g2d.setColor(new Color(ACCENT.getRed(), ACCENT.getGreen(), ACCENT.getBlue(), 50));
-        g2d.drawString(title, titleX - 2, 50);
-        g2d.drawString(title, titleX + 2, 50);
-        g2d.setColor(TEXT_PRIMARY);
-        g2d.drawString(title, titleX, 50);
-
         g2d.setFont(new Font("Arial", Font.BOLD, 24));
-        fm = g2d.getFontMetrics();
+        FontMetrics fm = g2d.getFontMetrics();
         
         String fullStatus = countText + " — " + statusText;
         int statusX = (WIDTH - fm.stringWidth(fullStatus)) / 2;
@@ -405,7 +394,7 @@ public class LobbyScreen extends JPanel implements Runnable {
 
     private void drawInstructions(Graphics2D g2d) {
         int panelX = 580;
-        int panelY = 340;
+        int panelY = 350;
         int panelWidth = 180;
         int panelHeight = 180;
 
@@ -443,7 +432,7 @@ public class LobbyScreen extends JPanel implements Runnable {
             "slow them down!"
         };
 
-        int yOffset = panelY + 55;
+        int yOffset = panelY + 45;
         for (String line : instructions) {
             g2d.drawString(line, panelX + 15, yOffset);
             yOffset += 16;

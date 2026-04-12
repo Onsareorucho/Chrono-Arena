@@ -118,7 +118,9 @@ public class SpriteManager {
         loadSprite("cooldown_active", "cooldown_active.png");
 
         // ==== BACKGROUND ====
+        loadSprite("menu_background", "menu_background.png");
         loadSprite("arena_background", "arena_background.png");
+        loadSprite("lobby_background", "lobby_background.png");
 
         System.out.println("Sprite loading complete.");
     }

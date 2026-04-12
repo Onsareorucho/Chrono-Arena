@@ -295,7 +295,7 @@ public class GameClient {
 
     public void onGameEvent(GameEvent event) {
         
-        if (event.getEventType() == GameEvent.EventType.GAME_STARTED) {
+        if (event.getEventType() == GameEvent.EventType.GAME_STARTING) {
             System.out.println("Server started the game!");
             soundManager.playSound("game_start");
             onGameStarted();

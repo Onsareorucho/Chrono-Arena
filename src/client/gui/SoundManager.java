@@ -81,9 +81,12 @@ public class SoundManager {
     public void loadAllSounds() {
         // ========= SOUND EFFECTS =========
         loadSound("freeze", "freeze_ray.wav");
+        loadSound("unfreeze", "unfreeze.wav");
 
         // ========= MUSIC TRACKS ========== 
-        loadMusic("menu", "menu.music.wav");
+        loadMusic("menu", "menu_music.wav");
+        loadMusic("lobby", "lobby_music.wav");
+        loadMusic("game", "game_music.wav");
 
         System.out.println("Sound loading complete.");
     }
