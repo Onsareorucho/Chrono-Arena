@@ -40,7 +40,7 @@ public final class GameConstants {
     public static final long ITEM_SPAWN_INTERVAL_MS = 10000;
     
     // Points gained from collecting energy
-    public static final int ENERGY_POINTS = 50;
+    public static final int ENERGY_POINTS = 25;
     
     // Max items that can exist on the map at once
     public static final int MAX_ITEMS_ON_MAP = 5;

@@ -113,8 +113,9 @@ public class GameClient {
                     try {
                         Thread.sleep(5000);
                     } catch (InterruptedException e) {
-                        SwingUtilities.invokeLater(() -> returnToMenu());
+                        Thread.currentThread().interrupt();
                     }
+                    SwingUtilities.invokeLater(() -> returnToMenu());
                 }).start();
             };
             networkManager.onKickReceived = kick -> { 
@@ -140,8 +141,9 @@ public class GameClient {
                     try {
                         Thread.sleep(5000);
                     } catch (InterruptedException e) {
-                        SwingUtilities.invokeLater(() -> returnToMenu());
+                        Thread.currentThread().interrupt();
                     }
+                    SwingUtilities.invokeLater(() -> returnToMenu());
                 }).start();
             };
 

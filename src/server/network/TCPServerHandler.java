@@ -9,6 +9,7 @@ import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -51,7 +52,7 @@ public class TCPServerHandler {
     // ── Callbacks — set these before calling start() ───────────
 
     /** Called when a new player successfully joins. */
-    public Consumer<Integer> onPlayerJoined = id -> {};
+    public BiConsumer<Integer, String> onPlayerJoined = (id, name) -> {};
 
     /** Called when a player disconnects or is evicted. */
     public Consumer<Integer> onPlayerLeft = id -> {};
@@ -131,7 +132,7 @@ public class TCPServerHandler {
             udpPort
         );
         conn.send(new GameMessage(MessageType.JOIN_RESPONSE, response));
-        onPlayerJoined.accept(playerId);
+        onPlayerJoined.accept(playerId, jr.getPlayerName());
 
         // Notify all others
         broadcast(new GameMessage(MessageType.PLAYER_JOINED,

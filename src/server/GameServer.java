@@ -58,10 +58,16 @@ public class GameServer {
         networkManager = new ServerNetworkManager(config, actionQueue);
 
         // When a player joins over TCP, add them to the game state
-        networkManager.onPlayerJoined = playerId -> {
-            Player newPlayer = new Player(playerId, "Player" + playerId, 5, 5, 100, false, 0, true, 0, false);
+        // Four corner spawns — spread players across the 20x20 map
+        int[][] spawnPoints = { {1, 1}, {18, 18}, {1, 18}, {18, 1} };
+
+        networkManager.onPlayerJoined = (playerId, playerName) -> {
+            int[] spawn = spawnPoints[(playerId - 1) % spawnPoints.length];
+            Player newPlayer = new Player(playerId, playerName,
+                    spawn[0], spawn[1], 100, false, 0, true, 0, false);
             gameState.addPlayer(newPlayer);
-            System.out.println("Player " + playerId + " added to game state");
+            System.out.println("Player " + playerId + " (" + playerName + ") spawned at ("
+                    + spawn[0] + "," + spawn[1] + ")");
         };
 
         // When a player disconnects, clean up their state

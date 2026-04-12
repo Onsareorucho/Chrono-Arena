@@ -41,7 +41,7 @@ public class ServerNetworkManager {
     // ── Callbacks ──────────────────────────────────────────────
 
     /** Wire to: playerId -> gameState.addPlayer(new Player(playerId, ...)) */
-    public Consumer<Integer> onPlayerJoined = id -> {};
+    public java.util.function.BiConsumer<Integer, String> onPlayerJoined = (id, name) -> {};
 
     /** Wire to: gameState::handlePlayerDisconnect */
     public Consumer<Integer> onPlayerLeft = id -> {};
@@ -54,7 +54,7 @@ public class ServerNetworkManager {
     }
 
     public void start() throws IOException {
-        tcp.onPlayerJoined = id -> onPlayerJoined.accept(id);
+        tcp.onPlayerJoined = (id, name) -> onPlayerJoined.accept(id, name);
         tcp.onPlayerLeft   = id -> {
             onPlayerLeft.accept(id);
             udp.removePlayer(id);

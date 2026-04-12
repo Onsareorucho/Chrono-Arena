@@ -160,15 +160,20 @@ public class GameLoop {
             case PLAYER_INPUT -> {
                 if (player.isFrozen()) break;
                 PlayerInput input = message.getPayloadAs(PlayerInput.class);
-                int newX = Math.max(0, Math.min(19, player.getPlayerPositionX() + input.getDirectionX()));
-                int newY = Math.max(0, Math.min(19, player.getPlayerPositionY() + input.getDirectionY()));
+                int step = player.isHasSpeedBoost() ? 2 : 1;
+                int newX = Math.max(0, Math.min(19, player.getPlayerPositionX() + input.getDirectionX() * step));
+                int newY = Math.max(0, Math.min(19, player.getPlayerPositionY() + input.getDirectionY() * step));
                 player.setPlayerPositionX(newX);
                 player.setPlayerPositionY(newY);
             }
             case PLAYER_ACTION -> {
                 if (player.isFrozen()) break;
                 PlayerAction action = message.getPayloadAs(PlayerAction.class);
-                // action handled by CombatHandler when freeze ray is fired directly
+                if (action.getActionType() == PlayerAction.ActionType.FREEZE_RAY) {
+                    Player target = findFreezeTarget(player,
+                            action.getTargetDirectionX(), action.getTargetDirectionY());
+                    if (target != null) combatHandler.handleFreezeAttack(player, target);
+                }
             }
             default -> System.out.println("Unhandled message type: " + message.getType());
         }
@@ -203,8 +208,9 @@ public class GameLoop {
                     int ownerId = zone.getControllingPlayerId();
                     if (ownerId != -1) {
                         Player owner = gameState.getPlayer(ownerId);
-                        if (owner != null) {
-                            owner.setPlayerScore(owner.getPlayerScore() + 1);
+                        long ticksPerSecond = Math.max(1, 1000 / tickRateMs);
+                        if (owner != null && gameState.getTickNumber() % ticksPerSecond == 0) {
+                            owner.setPlayerScore(owner.getPlayerScore() + 10);
                         }
                     }
                 }
@@ -212,6 +218,23 @@ public class GameLoop {
                 case CONTESTED, UNCLAIMED -> {}
             }
         }
+    }
+
+    private static final int FREEZE_REACH = 5;
+
+    private Player findFreezeTarget(Player attacker, int dirX, int dirY) {
+        Player closest = null;
+        int closestDist = Integer.MAX_VALUE;
+        for (Player candidate : gameState.getPlayers().values()) {
+            if (candidate.getPlayerId() == attacker.getPlayerId()) continue;
+            int dx = candidate.getPlayerPositionX() - attacker.getPlayerPositionX();
+            int dy = candidate.getPlayerPositionY() - attacker.getPlayerPositionY();
+            int dist = Math.abs(dx) + Math.abs(dy);
+            if (dist == 0 || dist > FREEZE_REACH) continue;
+            if ((dirX * dx + dirY * dy) <= 0) continue;  // must be in front
+            if (dist < closestDist) { closestDist = dist; closest = candidate; }
+        }
+        return closest;
     }
 
     public void updateFrozenPlayers() {

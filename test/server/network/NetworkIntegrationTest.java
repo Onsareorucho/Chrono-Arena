@@ -194,7 +194,7 @@ public class NetworkIntegrationTest {
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger joinedId = new AtomicInteger(-1);
-        server.onPlayerJoined = id -> { joinedId.set(id); latch.countDown(); };
+        server.onPlayerJoined = (id, name) -> { joinedId.set(id); latch.countDown(); };
 
         server.start(); udpServer.start();
         Thread.sleep(100);
