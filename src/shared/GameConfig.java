@@ -73,8 +73,13 @@ public class GameConfig {
     }
     
     public int getMapHeight() {
-        return Integer.parseInt(props.getProperty("map.height", 
+        return Integer.parseInt(props.getProperty("map.height",
                 String.valueOf(GameConstants.DEFAULT_MAP_HEIGHT)));
+    }
+
+    public int getMinPlayers() {
+        return Integer.parseInt(props.getProperty("min.players",
+                String.valueOf(GameConstants.MIN_PLAYERS)));
     }
     
     

@@ -86,6 +86,16 @@ public class ReconnectHandler {
         return (m != null) ? m.getPlayerId() : -1;
     }
 
+    public int getMinPlayers() {
+        ClientNetworkManager m = current;
+        return (m != null) ? m.getMinPlayers() : 2;
+    }
+
+    public int getCurrentPlayerCount() {
+        ClientNetworkManager m = current;
+        return (m != null) ? m.getCurrentPlayerCount() : 1;
+    }
+
     // ── Internal ───────────────────────────────────────────────
 
     private ClientNetworkManager buildManager() {

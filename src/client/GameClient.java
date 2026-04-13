@@ -42,6 +42,7 @@ public class GameClient {
     private String playerName = "Player";
 
     private boolean gameStarted = false;
+    private int lobbyPlayerCount = 1; // starts at 1 (self), incremented by PLAYER_JOINED events
 
     private GameStateUpdate lastGameState;
 
@@ -184,9 +185,17 @@ public class GameClient {
             };
             networkManager.onPlayerJoined = playerId -> {
                 System.out.println("Player " + playerId + " joined");
+                if (playerId != networkManager.getPlayerId()) {
+                    lobbyPlayerCount++;
+                    lobbyScreen.setPlayerCount(lobbyPlayerCount);
+                }
             };
             networkManager.onPlayerLeft = playerId -> {
                 System.out.println("Player " + playerId + " left");
+                if (playerId != networkManager.getPlayerId()) {
+                    lobbyPlayerCount = Math.max(1, lobbyPlayerCount - 1);
+                    lobbyScreen.setPlayerCount(lobbyPlayerCount);
+                }
             };
             networkManager.onReconnected = () -> {
                 System.out.println("Reconnected to server!");
@@ -214,6 +223,9 @@ public class GameClient {
 
             localPlayer.setID(networkManager.getPlayerId());
             lobbyScreen.setLocalPlayerId(networkManager.getPlayerId());
+            lobbyScreen.setMaxPlayers(networkManager.getMinPlayers());
+            lobbyPlayerCount = networkManager.getCurrentPlayerCount();
+            lobbyScreen.setPlayerCount(lobbyPlayerCount);
             gameScreen.setLocalPlayerId(networkManager.getPlayerId());
 
             System.out.println("Connected as player: " + networkManager.getPlayerId());
@@ -235,6 +247,7 @@ public class GameClient {
 
     private void returnToMenu() {
         gameStarted = false;
+        lobbyPlayerCount = 1;
         lobbyScreen.stopLobby();
         gameScreen.stopGame();
         gameOverScreen.stopScreen();

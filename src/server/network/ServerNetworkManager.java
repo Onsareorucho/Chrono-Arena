@@ -50,6 +50,7 @@ public class ServerNetworkManager {
 
     public ServerNetworkManager(GameConfig config, ActionQueue actionQueue) {
         this.tcp = new TCPServerHandler(config.getServerTcpPort(), config.getServerUdpPort());
+        this.tcp.setMinPlayers(config.getMinPlayers());
         this.udp = new UDPServerHandler(config.getServerUdpPort(), actionQueue);
     }
 

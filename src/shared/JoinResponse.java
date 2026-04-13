@@ -26,11 +26,14 @@ public class JoinResponse implements Serializable {
     
     // The UDP port the server is listening on
     private final int serverUdpPort;
-    
-    
-    public JoinResponse(int playerId, float startX, float startY, 
-                        int mapWidth, int mapHeight, 
-                        long gameTimeRemainingMs, int serverUdpPort) {
+    private final int minPlayers;
+    private final int currentPlayerCount;
+
+
+    public JoinResponse(int playerId, float startX, float startY,
+                        int mapWidth, int mapHeight,
+                        long gameTimeRemainingMs, int serverUdpPort, int minPlayers,
+                        int currentPlayerCount) {
         this.playerId = playerId;
         this.startX = startX;
         this.startY = startY;
@@ -38,6 +41,8 @@ public class JoinResponse implements Serializable {
         this.mapHeight = mapHeight;
         this.gameTimeRemainingMs = gameTimeRemainingMs;
         this.serverUdpPort = serverUdpPort;
+        this.minPlayers = minPlayers;
+        this.currentPlayerCount = currentPlayerCount;
     }
     
     
@@ -68,8 +73,16 @@ public class JoinResponse implements Serializable {
     public int getServerUdpPort() {
         return serverUdpPort;
     }
-    
-    
+
+    public int getMinPlayers() {
+        return minPlayers;
+    }
+
+    public int getCurrentPlayerCount() {
+        return currentPlayerCount;
+    }
+
+
     @Override
     public String toString() {
         return "JoinResponse{playerId=" + playerId + ", start=(" + startX + "," + startY + ")}";

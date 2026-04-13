@@ -36,6 +36,7 @@ public class TCPServerHandler {
 
     private final int tcpPort;
     private final int udpPort;
+    private int minPlayers = 2;
 
     private final ConcurrentHashMap<Integer, ClientConnection> clients = new ConcurrentHashMap<>();
     private final AtomicInteger nextPlayerId = new AtomicInteger(1);
@@ -62,6 +63,10 @@ public class TCPServerHandler {
     public TCPServerHandler(int tcpPort, int udpPort) {
         this.tcpPort = tcpPort;
         this.udpPort = udpPort;
+    }
+
+    public void setMinPlayers(int minPlayers) {
+        this.minPlayers = minPlayers;
     }
 
     public void start() throws IOException {
@@ -129,7 +134,7 @@ public class TCPServerHandler {
             playerId, 5.0f, 5.0f,          // start position
             20, 20,                          // map size (overridden by config in real game)
             180000L,                         // time remaining ms
-            udpPort
+            udpPort, minPlayers, clients.size()
         );
         conn.send(new GameMessage(MessageType.JOIN_RESPONSE, response));
         onPlayerJoined.accept(playerId, jr.getPlayerName());

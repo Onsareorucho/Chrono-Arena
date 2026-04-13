@@ -80,7 +80,7 @@ public class GameServer {
 
             // Start game once minimum players have joined
             if (gameState.getPhase() == GameState.GamePhase.WAITING
-                    && gameState.getPlayers().size() >= GameConstants.MIN_PLAYERS) {
+                    && gameState.getPlayers().size() >= config.getMinPlayers()) {
                 System.out.println("Minimum players reached — starting game!");
                 networkManager.broadcastEvent(GameEvent.gameStarting());
                 gameState.setPhase(GameState.GamePhase.IN_PROGRESS);
@@ -111,7 +111,7 @@ public class GameServer {
         gameLoop = new GameLoop(gameState, actionQueue, collisionHandler,
                                 itemSpawner, combatHandler, tickRateMs, networkManager);
 
-        System.out.println("Server running — waiting for " + GameConstants.MIN_PLAYERS + " players to start");
+        System.out.println("Server running — waiting for " + config.getMinPlayers() + " players to start");
     }
 
     public void stop() {
