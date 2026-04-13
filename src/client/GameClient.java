@@ -114,8 +114,9 @@ public class GameClient {
         }
     }
 
-    private void onPlayedClicked(String name) {
+    private void onPlayedClicked(String name, String serverIp) {
         this.playerName = name;
+        this.serverIP = serverIp;
 
         localPlayer = new LocalPlayer();
         localPlayer.setName(playerName);
@@ -166,6 +167,7 @@ public class GameClient {
     private void connectToServer() {
         try {
             GameConfig config = new GameConfig();
+            config.setServerIp(serverIP);
 
             networkManager = new ReconnectHandler(config, playerName);
 
@@ -182,8 +184,6 @@ public class GameClient {
             };
             networkManager.onPlayerJoined = playerId -> {
                 System.out.println("Player " + playerId + " joined");
-                // Update lobby player count
-                lobbyScreen.setPlayerCount(playerId);
             };
             networkManager.onPlayerLeft = playerId -> {
                 System.out.println("Player " + playerId + " left");
@@ -272,6 +272,8 @@ public class GameClient {
     }
 
     public void onGameStateReceived(GameStateUpdate gameState) {
+        lastGameState = gameState;
+
         // Update the appropriate screen based on game state
         if (!gameStarted) {
             // Still in lobby - update lobby screen

@@ -39,6 +39,10 @@ public class GameConfig {
     public String getServerIp() {
         return props.getProperty("server.ip", "localhost");
     }
+
+    public void setServerIp(String ip) {
+        props.setProperty("server.ip", ip);
+    }
     
     public int getServerTcpPort() {
         return Integer.parseInt(props.getProperty("server.tcp.port", "9000"));

@@ -241,11 +241,33 @@ public class GameState {
         }
     }
 
+    public void reset(long gameDurationMs) {
+        lock.writeLock().lock();
+        try {
+            players.clear();
+            items.clear();
+            tickNumber = 0;
+            timeRemainingMs = gameDurationMs;
+            phase = GamePhase.WAITING;
+            for (Zone zone : zones) {
+                zone.setZoneState(ZoneState.UNCLAIMED);
+                zone.setControllingPlayerId(-1);
+                zone.setContestingPlayerId(-1);
+                zone.setCaptureTicksLeft(0);
+                zone.setGraceTicksLeft(0);
+            }
+            System.out.println("Game state reset — ready for new game");
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
     public Player getWinner() {
         lock.readLock().lock();
         try {
             return players.values().stream()
-                    .max(Comparator.comparingInt(Player::getPlayerScore))
+                    .max(Comparator.comparingInt(Player::getPlayerScore)
+                            .thenComparing(Comparator.comparingInt(Player::getPlayerId).reversed()))
                     .orElse(null);
         } finally {
             lock.readLock().unlock();

@@ -24,7 +24,7 @@ public final class GameConstants {
     public static final long ZONE_CAPTURE_TIME_MS = 3000;
     
     // Points earned per second while holding a zone
-    public static final int ZONE_POINTS_PER_SECOND = 10;
+    public static final int ZONE_POINTS_PER_SECOND = 5;
     
     // Grace period before losing zone control after leaving (in milliseconds)
     // Set to 0 for instant loss, or 5000 for 5-second grace period

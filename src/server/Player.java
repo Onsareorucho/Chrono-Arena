@@ -17,6 +17,7 @@ public class Player {
     private boolean isConnected;
     private int lastSeq;
     private boolean hasSpeedBoost;
+    private int speedBoostTicksLeft;
 
     public Player(int playerID, String playerName, int playerPositionX, int playerPositionY, int playerHealth,
             boolean isArmed, int playerScore, boolean isConnected, int lastSeq, boolean hasSpeedBoost) {
@@ -122,5 +123,13 @@ public class Player {
 
     public void setHasSpeedBoost(boolean hasSpeedBoost) {
         this.hasSpeedBoost = hasSpeedBoost;
+    }
+
+    public int getSpeedBoostTicksLeft() {
+        return speedBoostTicksLeft;
+    }
+
+    public void setSpeedBoostTicksLeft(int ticks) {
+        this.speedBoostTicksLeft = ticks;
     }
 }

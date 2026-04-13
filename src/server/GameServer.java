@@ -7,6 +7,8 @@ import server.logic.ZoneCaptureHandler;
 import server.network.ServerNetworkManager;
 import server.util.KillSwitch;
 import shared.GameConfig;
+import shared.GameConstants;
+import shared.GameEvent;
 
 import java.io.IOException;
 
@@ -62,12 +64,28 @@ public class GameServer {
         int[][] spawnPoints = { {1, 1}, {18, 18}, {1, 18}, {18, 1} };
 
         networkManager.onPlayerJoined = (playerId, playerName) -> {
+            // If the previous game finished, reset before starting a new one
+            if (gameState.getPhase() == GameState.GamePhase.FINISHED) {
+                gameState.reset(config.getGameDurationSeconds() * 1000L);
+                gameLoop = new GameLoop(gameState, actionQueue, collisionHandler,
+                                        itemSpawner, combatHandler, tickRateMs, networkManager);
+            }
+
             int[] spawn = spawnPoints[(playerId - 1) % spawnPoints.length];
             Player newPlayer = new Player(playerId, playerName,
                     spawn[0], spawn[1], 100, false, 0, true, 0, false);
             gameState.addPlayer(newPlayer);
             System.out.println("Player " + playerId + " (" + playerName + ") spawned at ("
                     + spawn[0] + "," + spawn[1] + ")");
+
+            // Start game once minimum players have joined
+            if (gameState.getPhase() == GameState.GamePhase.WAITING
+                    && gameState.getPlayers().size() >= GameConstants.MIN_PLAYERS) {
+                System.out.println("Minimum players reached — starting game!");
+                networkManager.broadcastEvent(GameEvent.gameStarting());
+                gameState.setPhase(GameState.GamePhase.IN_PROGRESS);
+                gameLoop.start();
+            }
         };
 
         // When a player disconnects, clean up their state
@@ -85,15 +103,15 @@ public class GameServer {
         // Wire kill switch to network manager so it can close TCP connections
         killSwitch.setNetworkManager(networkManager);
 
+        // Wire event broadcasting into combat and collision handlers
+        combatHandler.setEventBroadcaster(networkManager::broadcastEvent);
+        collisionHandler.setEventBroadcaster(networkManager::broadcastEvent);
+
         // ── Initialize game loop ─────────────────────────────
         gameLoop = new GameLoop(gameState, actionQueue, collisionHandler,
                                 itemSpawner, combatHandler, tickRateMs, networkManager);
 
-        // ── Start game ───────────────────────────────────────
-        gameState.setPhase(GameState.GamePhase.IN_PROGRESS);
-        gameLoop.start();
-
-        System.out.println("Server running — waiting for players");
+        System.out.println("Server running — waiting for " + GameConstants.MIN_PLAYERS + " players to start");
     }
 
     public void stop() {

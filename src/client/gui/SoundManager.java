@@ -1,7 +1,8 @@
 package client.gui;
 
-import java.io.File;
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,13 +45,9 @@ public class SoundManager {
 
     public void loadSound(String name, String filename) {
         try {
-            File audioFile = new File(SOUNDS_PATH + filename);
-            if (!audioFile.exists()) {
-                System.err.println("Sound file not found: " + filename);
-                return;
-            }
-
-            AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
+            InputStream raw = getClass().getClassLoader().getResourceAsStream(SOUNDS_PATH + filename);
+            if (raw == null) { System.err.println("Sound file not found: " + filename); return; }
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(new BufferedInputStream(raw));
             Clip clip = AudioSystem.getClip();
             clip.open(audioStream);
             soundEffects.put(name, clip);
@@ -62,13 +59,9 @@ public class SoundManager {
 
     public void loadMusic(String name, String filename) {
         try {
-            File audioFile = new File(SOUNDS_PATH + filename);
-            if (!audioFile.exists()) {
-                System.err.println("Music file not found: " + filename);
-                return;
-            }
-
-            AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
+            InputStream raw = getClass().getClassLoader().getResourceAsStream(SOUNDS_PATH + filename);
+            if (raw == null) { System.err.println("Music file not found: " + filename); return; }
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(new BufferedInputStream(raw));
             Clip clip = AudioSystem.getClip();
             clip.open(audioStream);
             musicTracks.put(name, clip);
