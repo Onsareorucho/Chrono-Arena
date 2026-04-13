@@ -40,7 +40,7 @@ public final class GameConstants {
     public static final long ITEM_SPAWN_INTERVAL_MS = 10000;
     
     // Points gained from collecting energy
-    public static final int ENERGY_POINTS = 25;
+    public static final int ENERGY_POINTS = 100;
     
     // Max items that can exist on the map at once
     public static final int MAX_ITEMS_ON_MAP = 5;
@@ -61,7 +61,7 @@ public final class GameConstants {
     public static final long FREEZE_RAY_COOLDOWN_MS = 8000;
     
     // Points deducted from frozen player
-    public static final int FREEZE_RAY_POINT_PENALTY = 25;
+    public static final int FREEZE_RAY_POINT_PENALTY = 75;
     
 
     // UDP / TCP network settings
