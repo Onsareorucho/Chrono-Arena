@@ -287,6 +287,7 @@ public class GameClient {
     public void onGameStateReceived(GameStateUpdate gameState) {
         lastGameState = gameState;
 
+
         // Update the appropriate screen based on game state
         if (!gameStarted) {
             // Still in lobby - update lobby screen
