@@ -73,9 +73,14 @@ public class ServerNetworkManager {
 
     // ── Broadcasting ───────────────────────────────────────────
 
+    /** Called after every broadcastGameState — wire to ServerDisplay.update */
+    public Consumer<GameStateUpdate> onStateRendered = u -> {};
+
     /** Broadcast full game state snapshot to all clients every tick. */
     public void broadcastGameState(GameStateSnapshot snapshot) {
-        tcp.broadcast(new GameMessage(MessageType.GAME_STATE_UPDATE, toUpdate(snapshot)));
+        GameStateUpdate update = toUpdate(snapshot);
+        tcp.broadcast(new GameMessage(MessageType.GAME_STATE_UPDATE, update));
+        onStateRendered.accept(update);
     }
 
     /**
@@ -146,9 +151,13 @@ public class ServerNetworkManager {
         tcp.broadcast(new GameMessage(MessageType.GAME_EVENT, event));
     }
 
+    /** Called after broadcastGameOver — wire to ServerDisplay.onGameOver */
+    public Consumer<GameResult> onGameOver = r -> {};
+
     /** Broadcast game over with final results. */
     public void broadcastGameOver(GameResult result) {
         tcp.broadcast(new GameMessage(MessageType.GAME_END, result));
+        onGameOver.accept(result);
     }
 
     /** Send a message to one specific player only. */

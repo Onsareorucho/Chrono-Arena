@@ -59,6 +59,11 @@ public class GameServer {
         // ── Initialize networking (P2) ───────────────────────
         networkManager = new ServerNetworkManager(config, actionQueue);
 
+        // ── Server display (spectator window) ────────────────
+        ServerDisplay serverDisplay = new ServerDisplay();
+        networkManager.onStateRendered = serverDisplay::onGameStateUpdate;
+        networkManager.onGameOver      = serverDisplay::onGameOver;
+
         // When a player joins over TCP, add them to the game state
         // Four corner spawns — spread players across the 20x20 map
         int[][] spawnPoints = { {1, 1}, {18, 18}, {1, 18}, {18, 1} };
@@ -69,6 +74,7 @@ public class GameServer {
                 gameState.reset(config.getGameDurationSeconds() * 1000L);
                 gameLoop = new GameLoop(gameState, actionQueue, collisionHandler,
                                         itemSpawner, combatHandler, tickRateMs, networkManager);
+                serverDisplay.onReset();
             }
 
             int[] spawn = spawnPoints[(playerId - 1) % spawnPoints.length];
@@ -85,6 +91,7 @@ public class GameServer {
                 networkManager.broadcastEvent(GameEvent.gameStarting());
                 gameState.setPhase(GameState.GamePhase.IN_PROGRESS);
                 gameLoop.start();
+                serverDisplay.onGameStarted();
             }
         };
 
