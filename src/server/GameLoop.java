@@ -4,6 +4,8 @@ import server.logic.ActionQueue;
 import server.logic.CollisionHandler;
 import server.logic.CombatHandler;
 import server.network.ServerNetworkManager;
+import shared.GameConstants;
+import shared.GameEvent;
 import shared.GameMessage;
 import shared.GameResult;
 import shared.MessageType;
@@ -168,7 +170,11 @@ public class GameLoop {
             case PLAYER_ACTION -> {
                 if (player.isFrozen()) break;
                 PlayerAction action = message.getPayloadAs(PlayerAction.class);
-                // action handled by CombatHandler when freeze ray is fired directly
+                if (action.getActionType() == PlayerAction.ActionType.FREEZE_RAY) {
+                    Player target = findFreezeTarget(player,
+                            action.getTargetDirectionX(), action.getTargetDirectionY());
+                    if (target != null) combatHandler.handleFreezeAttack(player, target);
+                }
             }
             default -> System.out.println("Unhandled message type: " + message.getType());
         }
@@ -179,6 +185,10 @@ public class GameLoop {
             switch (zone.getZoneState()) {
 
                 case CAPTURING -> {
+                    // Pause countdown if the capturing player is frozen
+                    Player capturer = gameState.getPlayer(zone.getContestingPlayerId());
+                    if (capturer != null && capturer.isFrozen()) break;
+
                     int ticks = Math.max(0, zone.getCaptureTicksLeft() - 1);
                     zone.setCaptureTicksLeft(ticks);
                     if (ticks <= 0) {
@@ -203,8 +213,9 @@ public class GameLoop {
                     int ownerId = zone.getControllingPlayerId();
                     if (ownerId != -1) {
                         Player owner = gameState.getPlayer(ownerId);
-                        if (owner != null) {
-                            owner.setPlayerScore(owner.getPlayerScore() + 1);
+                        long ticksPerSecond = Math.max(1, 1000 / tickRateMs);
+                        if (owner != null && gameState.getTickNumber() % ticksPerSecond == 0) {
+                            owner.setPlayerScore(owner.getPlayerScore() + GameConstants.ZONE_POINTS_PER_SECOND);
                         }
                     }
                 }
@@ -214,10 +225,42 @@ public class GameLoop {
         }
     }
 
+    private static final int FREEZE_REACH = 5;
+
+    private Player findFreezeTarget(Player attacker, int dirX, int dirY) {
+        Player closest = null;
+        int closestDist = Integer.MAX_VALUE;
+        for (Player candidate : gameState.getPlayers().values()) {
+            if (candidate.getPlayerId() == attacker.getPlayerId()) continue;
+            int dx = candidate.getPlayerPositionX() - attacker.getPlayerPositionX();
+            int dy = candidate.getPlayerPositionY() - attacker.getPlayerPositionY();
+            int dist = Math.abs(dx) + Math.abs(dy);
+            if (dist == 0 || dist > FREEZE_REACH) continue;
+            if ((dirX * dx + dirY * dy) <= 0) continue;  // must be in front
+            if (dist < closestDist) { closestDist = dist; closest = candidate; }
+        }
+        return closest;
+    }
+
     public void updateFrozenPlayers() {
         for (Player player : gameState.getPlayers().values()) {
             if (player.isFrozen()) {
-                player.setFrozenTicksLeft(Math.max(0, player.getFrozenTicksLeft() - 1));
+                int ticks = Math.max(0, player.getFrozenTicksLeft() - 1);
+                player.setFrozenTicksLeft(ticks);
+                if (ticks == 0 && networkManager != null) {
+                    networkManager.broadcastEvent(GameEvent.playerUnfroze(
+                            player.getPlayerId(),
+                            player.getPlayerPositionX(),
+                            player.getPlayerPositionY()));
+                }
+            }
+            if (player.isHasSpeedBoost()) {
+                int boostTicks = Math.max(0, player.getSpeedBoostTicksLeft() - 1);
+                player.setSpeedBoostTicksLeft(boostTicks);
+                if (boostTicks == 0) {
+                    player.setHasSpeedBoost(false);
+                    System.out.println(player.getPlayerName() + " speed boost expired");
+                }
             }
         }
     }

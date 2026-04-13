@@ -68,6 +68,10 @@ public class GameEvent implements Serializable {
         return new GameEvent(EventType.GAME_ENDED, winnerId, -1, -1, 0, 0, winnerName);
     }
 
+    public static GameEvent gameStarting() {
+        return new GameEvent(EventType.GAME_STARTING, -1, -1, -1, 0, 0, null);
+    }
+
 
     // ── Getters ──────────────────────────────────────────────
 

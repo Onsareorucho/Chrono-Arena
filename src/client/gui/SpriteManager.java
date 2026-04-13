@@ -2,7 +2,7 @@ package client.gui;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
-import java.io.File;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,9 +22,9 @@ public class SpriteManager {
     }
 
     public void loadSprite(String name, String filename) {
-        try {
-            BufferedImage img = ImageIO.read(new File(ASSETS_PATH + filename));
-            sprites.put(name, img);
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(ASSETS_PATH + filename)) {
+            if (is == null) { System.err.println("Sprite not found: " + filename); return; }
+            sprites.put(name, ImageIO.read(is));
             System.out.println("Loaded sprite: " + name);
         } catch (Exception e) {
             System.err.println("Failed to load sprite: " + filename);
@@ -44,8 +44,9 @@ public class SpriteManager {
     }
 
     public void loadSpriteStates(String baseName, String filename, int frameWidth, int frameHeight, String[] stateNames) {
-        try {
-            BufferedImage sheet = ImageIO.read(new File(ASSETS_PATH + filename));
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(ASSETS_PATH + filename)) {
+            if (is == null) { System.err.println("Sprite sheet not found: " + filename); return; }
+            BufferedImage sheet = ImageIO.read(is);
 
             for (int i = 0; i < stateNames.length; i++) {
                 BufferedImage frame = sheet.getSubimage(0, i*frameHeight, frameWidth, frameHeight);
@@ -59,8 +60,9 @@ public class SpriteManager {
     }
 
     public void loadAnimationSheet(String baseName, String filename, int frameCount, int frameWidth, int frameHeight, String[] stateNames) {
-        try {
-            BufferedImage sheet = ImageIO.read(new File(ASSETS_PATH + filename));
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(ASSETS_PATH + filename)) {
+            if (is == null) { System.err.println("Animation sheet not found: " + filename); return; }
+            BufferedImage sheet = ImageIO.read(is);
 
             for(int row = 0; row < stateNames.length; row++){
                 BufferedImage[] frames = new BufferedImage[frameCount];

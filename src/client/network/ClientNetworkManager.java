@@ -42,7 +42,9 @@ public class ClientNetworkManager {
     private TCPClientHandler tcp;
     private UDPClientHandler udp;
 
-    private int playerId = -1;
+    private int playerId            = -1;
+    private int minPlayers          = 2;
+    private int currentPlayerCount  = 1;
 
     // ── GUI callbacks ──────────────────────────────────────────
 
@@ -80,7 +82,9 @@ public class ClientNetworkManager {
         tcp.onDisconnected    = () -> onDisconnected.run();
 
         JoinResponse jr = tcp.connect(playerName);
-        playerId = jr.getPlayerId();
+        playerId            = jr.getPlayerId();
+        minPlayers          = jr.getMinPlayers();
+        currentPlayerCount  = jr.getCurrentPlayerCount();
 
         // Create UDP handler now that we know the server's UDP port
         udp = new UDPClientHandler(config.getServerIp(), jr.getServerUdpPort(), playerId);
@@ -112,6 +116,8 @@ public class ClientNetworkManager {
 
     // ── Accessors ──────────────────────────────────────────────
 
-    public int getPlayerId() { return playerId; }
-    public boolean isAlive() { return tcp != null && tcp.isRunning(); }
+    public int getPlayerId()           { return playerId; }
+    public int getMinPlayers()         { return minPlayers; }
+    public int getCurrentPlayerCount() { return currentPlayerCount; }
+    public boolean isAlive()           { return tcp != null && tcp.isRunning(); }
 }

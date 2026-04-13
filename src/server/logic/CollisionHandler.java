@@ -2,20 +2,27 @@ package server.logic;
 
 import server.*;
 import shared.GameConstants;
+import shared.GameEvent;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
 
 
 public class CollisionHandler {
 
     private final GameState gameState;
     private final ZoneCaptureHandler zoneCaptureHandler;
+    private Consumer<GameEvent> eventBroadcaster = e -> {};
 
     public CollisionHandler(GameState gameState, ZoneCaptureHandler zoneCaptureHandler) {
         this.gameState = gameState;
         this.zoneCaptureHandler = zoneCaptureHandler;
+    }
+
+    public void setEventBroadcaster(Consumer<GameEvent> broadcaster) {
+        this.eventBroadcaster = broadcaster;
     }
 
     // called every tick by GameLoop
@@ -82,6 +89,7 @@ public class CollisionHandler {
 
     // handle item collection
     private void handleItemPickup(Player player, Item item) {
+        String itemTypeName = item.getItemType().name();
         switch (item.getItemType()) {
             case ENERGY -> {
                 player.setPlayerScore(player.getPlayerScore() + GameConstants.ENERGY_POINTS);
@@ -93,9 +101,14 @@ public class CollisionHandler {
             }
             case SPEED_BOOST -> {
                 player.setHasSpeedBoost(true);
+                player.setSpeedBoostTicksLeft((int) (GameConstants.SPEED_BOOST_DURATION_MS / 50));
                 System.out.println(player.getPlayerName() + " picked up SPEED BOOST — capture time halved");
             }
         }
+
+        eventBroadcaster.accept(GameEvent.itemCollected(
+                player.getPlayerId(), item.getItemId().hashCode(), itemTypeName,
+                (float) item.getItemPositionX(), (float) item.getItemPositionY()));
 
         // mark unavailable and remove from game state
         item.setAvailable(false);

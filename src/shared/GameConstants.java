@@ -24,7 +24,7 @@ public final class GameConstants {
     public static final long ZONE_CAPTURE_TIME_MS = 3000;
     
     // Points earned per second while holding a zone
-    public static final int ZONE_POINTS_PER_SECOND = 10;
+    public static final int ZONE_POINTS_PER_SECOND = 5;
     
     // Grace period before losing zone control after leaving (in milliseconds)
     // Set to 0 for instant loss, or 5000 for 5-second grace period
@@ -40,7 +40,7 @@ public final class GameConstants {
     public static final long ITEM_SPAWN_INTERVAL_MS = 10000;
     
     // Points gained from collecting energy
-    public static final int ENERGY_POINTS = 50;
+    public static final int ENERGY_POINTS = 25;
     
     // Max items that can exist on the map at once
     public static final int MAX_ITEMS_ON_MAP = 5;

@@ -34,6 +34,7 @@ public class MainMenuScreen extends JPanel {
     private static final Color TEXT_SECONDARY = new Color(255, 242, 201);
 
     private JTextField nameField;
+    private JTextField ipField;
 
     private MenuButton playButton;
     private MenuButton quitButton;
@@ -48,7 +49,7 @@ public class MainMenuScreen extends JPanel {
     private SpriteManager spriteManager;
 
     public interface PlayCallback {
-        void onPlayClicked(String playerName);
+        void onPlayClicked(String playerName, String serverIp);
     }
 
     public MainMenuScreen() {
@@ -66,17 +67,21 @@ public class MainMenuScreen extends JPanel {
 
     private void setupInputFields() {
         nameField = createStyledTextField("Enter your name...");
-        nameField.setBounds(WIDTH / 2 - 150, 225, 300, 40);
+        nameField.setBounds(WIDTH / 2 - 150, 210, 300, 40);
         add(nameField);
- 
-        nameField.addKeyListener(new KeyAdapter() {
+
+        ipField = createStyledTextField("Server IP (e.g. 192.168.1.10)");
+        ipField.setBounds(WIDTH / 2 - 150, 290, 300, 40);
+        add(ipField);
+
+        KeyAdapter enterHandler = new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    handlePlay();
-                }
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) handlePlay();
             }
-        });
+        };
+        nameField.addKeyListener(enterHandler);
+        ipField.addKeyListener(enterHandler);
     }
 
     private JTextField createStyledTextField(String placeholder) {
@@ -117,10 +122,10 @@ public class MainMenuScreen extends JPanel {
     }
     
     private void setupButtons() {
-        playButton = new MenuButton("PLAY", WIDTH / 2 - 100, 345, 200, 50);
+        playButton = new MenuButton("PLAY", WIDTH / 2 - 100, 370, 200, 50);
         playButton.setOnClick(this::handlePlay);
- 
-        quitButton = new MenuButton("QUIT", WIDTH / 2 - 80, 435, 160, 40);
+
+        quitButton = new MenuButton("QUIT", WIDTH / 2 - 80, 455, 160, 40);
         quitButton.setOnClick(() -> System.exit(0));
  
         // Mouse listener for button hover/click detection
@@ -159,19 +164,24 @@ public class MainMenuScreen extends JPanel {
 
     private void handlePlay() {
         String name = nameField.getText().trim();
- 
-        // Validate name
+        String ip   = ipField.getText().trim();
+
         if (name.isEmpty() || name.equals("Enter your name...")) {
             setStatus("Please enter your name!", Color.ORANGE);
             nameField.requestFocus();
             return;
         }
- 
-        // Clear status and notify callback
+
+        if (ip.isEmpty() || ip.equals("Server IP (e.g. 192.168.1.10)")) {
+            setStatus("Please enter the server IP!", Color.ORANGE);
+            ipField.requestFocus();
+            return;
+        }
+
         setStatus("Connecting...", ACCENT);
- 
+
         if (onPlayClicked != null) {
-            onPlayClicked.onPlayClicked(name);
+            onPlayClicked.onPlayClicked(name, ip);
         }
     }
 
@@ -225,8 +235,8 @@ public class MainMenuScreen extends JPanel {
     private void drawLabels(Graphics2D g2d) {
         g2d.setFont(new Font("Arial", Font.BOLD, 14));
         g2d.setColor(TEXT_SECONDARY);
- 
-        g2d.drawString("PLAYER NAME", WIDTH / 2 - 150, 215);
+        g2d.drawString("PLAYER NAME", WIDTH / 2 - 150, 200);
+        g2d.drawString("SERVER IP", WIDTH / 2 - 150, 280);
     }
 
 
